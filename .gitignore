@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Build and Distribution
+build/
+dist/
+build_hotfix/
+dist_hotfix/
+*.spec
+
+# Bot Specific
+config.json
+debug_log.txt
+match_finish.png
+captures/
+gcm-diagnose.log
+src/assets/*.png
+!src/assets/.gitkeep
+
+# IDEs
+.vscode/
+.idea/
