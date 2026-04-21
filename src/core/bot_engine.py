@@ -7,7 +7,14 @@ import pydirectinput
 
 from src.core.controller import human_click, sleep_with_stop
 from src.core.vision import find_and_click, is_image_visible, locate_image
-from src.utils.config import CAPTURES_DIR, is_asset_custom, is_coordinate_ready
+from src.utils.config import (
+    CAPTURES_DIR,
+    is_asset_custom,
+    is_coordinate_ready,
+    point_inside_window,
+    resolve_coordinate,
+    resolve_outcome_area,
+)
 from src.utils.discord import send_discord
 from src.utils.windows import (
     bring_window_to_foreground,
@@ -183,9 +190,18 @@ class BotEngine:
         self.invalidate_runtime_caches()
         return True
 
-    def click_saved_coordinate(self, point, label, clicks=1, move_first=True, offset=2, pause=0.1):
+    def click_saved_coordinate(self, key, label, clicks=1, move_first=True, offset=2, pause=0.1):
+        current_window = self.get_search_region(force_refresh=True)
+        point = resolve_coordinate(self.app.config, key, window_rect=current_window)
         if not is_coordinate_ready(point):
             self.log(f"{label} coordinate is not configured.", is_error=True)
+            return False
+
+        if current_window and not point_inside_window(point, current_window, margin=1):
+            self.log(
+                f"{label} resolved outside the current Roblox window. Re-pick this coordinate for the current client size.",
+                is_error=True,
+            )
             return False
 
         for index in range(clicks):
@@ -743,8 +759,8 @@ class BotEngine:
         return None
 
     def auto_punch(self):
-        pos1 = self.app.config.get("pos_1")
-        pos2 = self.app.config.get("pos_2")
+        pos1 = resolve_coordinate(self.app.config, "pos_1", window_rect=self.get_search_region(force_refresh=True))
+        pos2 = resolve_coordinate(self.app.config, "pos_2", window_rect=self.get_search_region())
         if not is_coordinate_ready(pos1) or not is_coordinate_ready(pos2):
             self.log("Combat setup coordinates are not configured. Aborting auto-punch.", is_error=True)
             return False
@@ -770,14 +786,14 @@ class BotEngine:
         if not self.sleep(0.9):
             return False
 
-        if not self.click_saved_coordinate(pos1, "Statistics icon", clicks=1, move_first=True, offset=4, pause=0.0):
+        if not self.click_saved_coordinate("pos_1", "Statistics icon", clicks=1, move_first=True, offset=4, pause=0.0):
             return False
         self.log("Statistics menu opened.")
         if not self.sleep(1.0):
             return False
 
         self.log("Applying 15 melee upgrades.")
-        if not self.click_saved_coordinate(pos2, "Melee upgrade button", clicks=15, move_first=True, offset=2, pause=0.08):
+        if not self.click_saved_coordinate("pos_2", "Melee upgrade button", clicks=15, move_first=True, offset=2, pause=0.08):
             return False
 
         pydirectinput.press(menu_key)
@@ -849,7 +865,7 @@ class BotEngine:
         screenshot_path = os.path.join(CAPTURES_DIR, "match_finish.png")
         try:
             full_screenshot = pyautogui.screenshot()
-            area = self.app.config.get("outcome_area")
+            area = resolve_outcome_area(self.app.config, window_rect=self.get_search_region())
             if area:
                 left, top, right, bottom = area
                 cropped = full_screenshot.crop((left, top, right, bottom))

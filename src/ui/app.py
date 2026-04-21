@@ -22,17 +22,23 @@ from src.utils.config import (
     IMAGE_SPECS,
     LOG_FILE,
     RUNTIME_DIR,
+    describe_area_binding,
+    describe_coordinate_binding,
+    describe_window_size,
     get_asset_records,
     get_optional_asset_records,
     get_optional_setup_warnings,
     get_required_asset_records,
     get_required_setup_issues,
+    get_runtime_portability_report,
     is_coordinate_ready,
     is_asset_custom,
     load_config,
     resolve_path,
     save_config,
+    set_coordinate_binding,
     set_asset_path,
+    set_outcome_area_binding,
 )
 from src.utils.discord import send_discord
 from src.utils.windows import (
@@ -268,6 +274,15 @@ class ZedsuApp:
         )
         self.combat_summary_label.pack(anchor=tk.W, pady=(0, 12))
 
+        self.portability_summary_label = ttk.Label(
+            readiness_card,
+            text="Portability: waiting for a Roblox window before verifying cross-machine safety.",
+            style="Muted.TLabel",
+            wraplength=360,
+            justify=tk.LEFT,
+        )
+        self.portability_summary_label.pack(anchor=tk.W, pady=(0, 12))
+
         ttk.Label(readiness_card, text="What to do next", style="Muted.TLabel").pack(anchor=tk.W)
         self.checklist_label = ttk.Label(
             readiness_card,
@@ -285,6 +300,7 @@ class ZedsuApp:
         tips_text = (
             "Use windowed or borderless mode.\n"
             "Keep the game visible while capturing assets.\n"
+            "A 15-inch laptop is fine if the Roblox client stays readable (about 960x540 or larger).\n"
             "Lower confidence slightly if detection misses a button."
         )
         ttk.Label(readiness_card, text=tips_text, wraplength=360, justify=tk.LEFT).pack(anchor=tk.W, fill=tk.X, pady=(4, 0))
@@ -593,6 +609,14 @@ class ZedsuApp:
             wraplength=360,
             justify=tk.LEFT,
         ).pack(anchor=tk.W, pady=(2, 0))
+        self.book_coord_detail_label = ttk.Label(
+            coords_card,
+            text="Binding: not set.",
+            style="Muted.TLabel",
+            wraplength=360,
+            justify=tk.LEFT,
+        )
+        self.book_coord_detail_label.pack(anchor=tk.W, pady=(2, 0))
         btn_book = ttk.Button(
             coords_card,
             text=f"Pick {COORDINATE_SPECS['pos_1']['label']}",
@@ -616,6 +640,14 @@ class ZedsuApp:
             wraplength=360,
             justify=tk.LEFT,
         ).pack(anchor=tk.W, pady=(2, 0))
+        self.str_coord_detail_label = ttk.Label(
+            coords_card,
+            text="Binding: not set.",
+            style="Muted.TLabel",
+            wraplength=360,
+            justify=tk.LEFT,
+        )
+        self.str_coord_detail_label.pack(anchor=tk.W, pady=(2, 0))
         btn_str = ttk.Button(
             coords_card,
             text=f"Pick {COORDINATE_SPECS['pos_2']['label']}",
@@ -679,6 +711,14 @@ class ZedsuApp:
 
         self.area_label = ttk.Label(outcome_card, text="Area: full screen", style="SmallValue.TLabel", wraplength=360, justify=tk.LEFT)
         self.area_label.pack(anchor=tk.W)
+        self.area_detail_label = ttk.Label(
+            outcome_card,
+            text="Binding: full screen fallback.",
+            style="Muted.TLabel",
+            wraplength=360,
+            justify=tk.LEFT,
+        )
+        self.area_detail_label.pack(anchor=tk.W, pady=(4, 0))
 
         area_buttons = ttk.Frame(outcome_card, style="Card.TFrame")
         area_buttons.pack(anchor=tk.W, pady=(8, 0))
@@ -744,10 +784,11 @@ class ZedsuApp:
             "1. Run the game in windowed or borderless mode.\n"
             "2. Refresh the window list and verify the title.\n"
             "3. Use Guided Capture to collect all eight tracked assets, including the combat-equip indicator.\n"
-            "4. Set the Statistics Icon and Melee Upgrade Button coordinates once.\n"
+            "4. Re-pick the Statistics Icon and Melee Upgrade Button once on your current setup so they bind to the Roblox window size.\n"
             "5. Press START BOT or F1.\n\n"
             "Combat runtime flow is now: verify melee equip, spam 5 M1s, then dynamic move and repeat.\n\n"
-            "The bot writes config.json, debug_log.txt, captures, and assets next to the executable when packaged."
+            "The bot writes config.json, debug_log.txt, captures, and assets next to the executable when packaged.\n"
+            "Smaller Roblox windows can still work, but if the client drops below about 960x540, template matching becomes less reliable."
         )
         ttk.Label(help_card, text=help_text, justify=tk.LEFT, wraplength=900).pack(anchor=tk.W)
 
@@ -761,6 +802,15 @@ class ZedsuApp:
 
     def toggle_bot_hotkey(self):
         self.root.after(0, self.toggle_bot)
+
+    def _selected_window_title(self):
+        return self.window_title_var.get().strip() or self.config.get("game_window_title", "").strip()
+
+    def _selected_window_rect(self):
+        title = self._selected_window_title()
+        if not title:
+            return None
+        return get_window_rect(title)
 
     def persist_form_to_config(self, show_feedback=False):
         try:
@@ -1049,8 +1099,20 @@ class ZedsuApp:
             def finish():
                 self.log(f"Foreground during test: {foreground}")
                 self.log(f"Window region during test: {region}")
+                if region:
+                    self.log(f"Current Roblox client size: {describe_window_size(region)}")
                 if screenshot_path:
                     self.log(f"Saved test screenshot: {screenshot_path}")
+
+                portability = get_runtime_portability_report(self.config, window_rect=region)
+                if portability["scaled_asset_keys"]:
+                    self.log(
+                        f"Scale warning: {len(portability['scaled_asset_keys'])} asset(s) were captured at another Roblox size.",
+                        is_error=True,
+                    )
+                for warning in portability["warnings"]:
+                    if warning.startswith("Roblox is running below the recommended client size"):
+                        self.log(warning, is_error=True)
 
                 found_any = False
                 for key, result in findings:
@@ -1106,13 +1168,21 @@ class ZedsuApp:
         if self.is_running:
             return
 
+        window_title = self._selected_window_title()
+        window_rect = self._selected_window_rect()
+        if not window_rect:
+            self.log(
+                "Roblox window was not resolved before capture. The asset will still be saved, but resize warnings will stay less precise.",
+                is_error=True,
+            )
+
         def launch_tool(screenshot):
             ScreenCaptureTool(
                 self.root,
                 screenshot,
                 key,
                 ASSETS_DIR,
-                on_complete=lambda path: self._complete_asset_capture(key, path, queued),
+                on_complete=lambda path: self._complete_asset_capture(key, path, queued, window_rect, window_title),
                 on_cancel=lambda: self._cancel_asset_capture(queued),
                 save_name=IMAGE_SPECS[key]["filename"],
                 title=IMAGE_SPECS[key]["label"],
@@ -1121,8 +1191,15 @@ class ZedsuApp:
         self.log(f"Prepare the screen for {IMAGE_SPECS[key]['label']}. Capture opens in a moment.")
         self._begin_screen_tool(launch_tool)
 
-    def _complete_asset_capture(self, key, path, queued):
-        set_asset_path(self.config, key, path)
+    def _complete_asset_capture(self, key, path, queued, window_rect=None, window_title=""):
+        set_asset_path(
+            self.config,
+            key,
+            path,
+            window_rect=window_rect,
+            window_title=window_title,
+            capture_source="guided_capture",
+        )
         save_config(self.config)
         self.config = load_config()
         self.restore_main_window()
@@ -1143,19 +1220,26 @@ class ZedsuApp:
 
         label = COORDINATE_SPECS.get(key, {}).get("label", key)
         self.log(f"Pick coordinate for {label}.")
+        window_title = self._selected_window_title()
+        window_rect = self._selected_window_rect()
+        if not window_rect:
+            self.log(
+                "Roblox window was not resolved before coordinate capture. This pick will be saved as a legacy screen coordinate.",
+                is_error=True,
+            )
 
         def launch_tool(screenshot):
             CoordinatePicker(
                 self.root,
                 screenshot,
-                on_complete=lambda result: self._complete_coord_pick(key, result),
+                on_complete=lambda result: self._complete_coord_pick(key, result, window_rect, window_title),
                 on_cancel=self.restore_main_window,
             )
 
         self._begin_screen_tool(launch_tool)
 
-    def _complete_coord_pick(self, key, result):
-        self.config[key] = result
+    def _complete_coord_pick(self, key, result, window_rect=None, window_title=""):
+        set_coordinate_binding(self.config, key, result, window_rect=window_rect, window_title=window_title)
         save_config(self.config)
         self.config = load_config()
         self.restore_main_window()
@@ -1169,30 +1253,40 @@ class ZedsuApp:
             return
 
         self.log("Pick the outcome screenshot area.")
+        window_title = self._selected_window_title()
+        window_rect = self._selected_window_rect()
+        if not window_rect:
+            self.log(
+                "Roblox window was not resolved before the screenshot-area pick. The crop will be tied to screen coordinates only.",
+                is_error=True,
+            )
 
         def launch_tool(screenshot):
             AreaPicker(
                 self.root,
                 screenshot,
-                on_complete=self._complete_area_pick,
+                on_complete=lambda result: self._complete_area_pick(result, window_rect, window_title),
                 on_cancel=self.restore_main_window,
             )
 
         self._begin_screen_tool(launch_tool)
 
-    def _complete_area_pick(self, result):
-        self.config["outcome_area"] = result
+    def _complete_area_pick(self, result, window_rect=None, window_title=""):
+        set_outcome_area_binding(self.config, result, window_rect=window_rect, window_title=window_title)
         save_config(self.config)
         self.config = load_config()
         self.restore_main_window()
         self.refresh_coordinate_labels()
+        self.refresh_runtime_summary()
         self.log(f"Result screenshot area saved: {result}")
 
     def clear_area(self):
         self.config["outcome_area"] = None
+        self.config["outcome_area_profile"] = None
         save_config(self.config)
         self.config = load_config()
         self.refresh_coordinate_labels()
+        self.refresh_runtime_summary()
         self.log("Result screenshot area cleared.")
 
     def _begin_screen_tool(self, launch_tool, delay_ms=1300):
@@ -1264,7 +1358,7 @@ class ZedsuApp:
     def refresh_coordinate_labels(self):
         pos1 = self.config.get("pos_1")
         pos2 = self.config.get("pos_2")
-        area = self.config.get("outcome_area")
+        area_text = describe_area_binding(self.config)
 
         self.book_coord_label.config(
             text=f"{COORDINATE_SPECS['pos_1']['label']}: {pos1 if is_coordinate_ready(pos1) else 'not set'}"
@@ -1272,7 +1366,15 @@ class ZedsuApp:
         self.str_coord_label.config(
             text=f"{COORDINATE_SPECS['pos_2']['label']}: {pos2 if is_coordinate_ready(pos2) else 'not set'}"
         )
-        self.area_label.config(text=f"Area: {area if area else 'full screen'}")
+        self.book_coord_detail_label.config(text=describe_coordinate_binding(self.config, "pos_1"))
+        self.str_coord_detail_label.config(text=describe_coordinate_binding(self.config, "pos_2"))
+        self.area_label.config(text=area_text)
+        if "portable window-relative capture" in area_text:
+            self.area_detail_label.config(text="Binding: follows the Roblox client and scales with the current window.")
+        elif "legacy screen area" in area_text:
+            self.area_detail_label.config(text="Binding: screen-based. Re-pick this if you resize Roblox or move it to another monitor.")
+        else:
+            self.area_detail_label.config(text="Binding: full screen fallback.")
 
     def refresh_runtime_summary_loop(self):
         if self.root.winfo_exists():
@@ -1284,19 +1386,30 @@ class ZedsuApp:
         required_records = get_required_asset_records(self.config)
         optional_records = get_optional_asset_records(self.config)
         ready_count = sum(1 for record in required_records if record["state"] == "custom")
-        window_title = self.window_title_var.get().strip() or self.config.get("game_window_title", "").strip()
+        window_title = self._selected_window_title()
         window_match = find_window_by_title(window_title) if window_title else None
+        window_rect = get_window_rect(window_title) if window_title else None
+        portability = get_runtime_portability_report(self.config, window_rect=window_rect)
 
         issues = get_required_setup_issues(self.config)
         warnings = get_optional_setup_warnings(self.config)
 
         if self.config.get("window_focus_required", True):
-            if window_match:
+            if window_match and window_rect:
+                self.window_summary_label.config(
+                    text=f"Window: ready ({window_match[1]}) | client {describe_window_size(window_rect)}"
+                )
+            elif window_match:
                 self.window_summary_label.config(text=f"Window: ready ({window_match[1]})")
             else:
                 self.window_summary_label.config(text="Window: not found. Open the game or update the title.")
         else:
-            self.window_summary_label.config(text="Window: focus requirement disabled")
+            if window_rect:
+                self.window_summary_label.config(
+                    text=f"Window: focus requirement disabled | client {describe_window_size(window_rect)}"
+                )
+            else:
+                self.window_summary_label.config(text="Window: focus requirement disabled")
 
         readiness_checks = 4
         readiness_done = 0
@@ -1309,10 +1422,16 @@ class ZedsuApp:
         if is_coordinate_ready(self.config.get("pos_2")):
             readiness_done += 1
 
-        if not issues and (window_match or not self.config.get("window_focus_required", True)):
+        pending_portability = len(portability["blockers"])
+
+        if not issues and not pending_portability and (window_match or not self.config.get("window_focus_required", True)):
             self.setup_summary_label.config(text="Setup status: ready to run")
         else:
-            pending = len(issues) + (1 if self.config.get("window_focus_required", True) and not window_match else 0)
+            pending = (
+                len(issues)
+                + pending_portability
+                + (1 if self.config.get("window_focus_required", True) and not window_match else 0)
+            )
             self.setup_summary_label.config(text=f"Setup status: {pending} item(s) need attention")
 
         checklist_lines = []
@@ -1322,9 +1441,12 @@ class ZedsuApp:
         for index, issue in enumerate(issues, start=len(checklist_lines) + 1):
             checklist_lines.append(f"{index}. {issue}")
 
+        for index, issue in enumerate(portability["blockers"], start=len(checklist_lines) + 1):
+            checklist_lines.append(f"{index}. {issue}")
+
         if not checklist_lines:
             checklist_lines.append("1. Setup complete. You can start the bot now.")
-            if warnings:
+            if warnings or portability["warnings"]:
                 checklist_lines.append("2. Optional: review the warnings below for extra polish.")
 
         self.checklist_label.config(text="\n".join(checklist_lines))
@@ -1338,6 +1460,43 @@ class ZedsuApp:
         else:
             combat_summary = "Combat verification: using fallback slot heuristics until the combat asset is captured."
         self.combat_summary_label.config(text=combat_summary)
+
+        if not window_rect:
+            portability_text = "Portability: open the Roblox client to verify current size, scaling, and cross-machine safety."
+        elif portability["blockers"]:
+            portability_text = f"Portability: {portability['blockers'][0]}"
+        else:
+            portability_parts = []
+            if portability["legacy_coordinate_keys"]:
+                portability_parts.append(
+                    "Coordinates still include legacy screen picks. Re-pick them once to make clicks follow the Roblox window."
+                )
+            else:
+                portability_parts.append(
+                    f"Coordinates are portable against the current Roblox client ({describe_window_size(window_rect)})."
+                )
+
+            if portability["scaled_asset_keys"]:
+                portability_parts.append(
+                    f"{len(portability['scaled_asset_keys'])} asset(s) were captured at another client size, so recapturing on this window is safer."
+                )
+            elif not portability["warnings"]:
+                portability_parts.append("Asset scale metadata looks aligned with the current client.")
+
+            size_warning = next(
+                (
+                    warning
+                    for warning in portability["warnings"]
+                    if warning.startswith("Roblox is running below the recommended client size")
+                ),
+                "",
+            )
+            if size_warning:
+                portability_parts.append(size_warning)
+
+            portability_text = "Portability: " + " ".join(portability_parts)
+
+        self.portability_summary_label.config(text=portability_text)
 
         mode_text = "QUICK LEAVE" if self.config.get("match_mode") == "quick" else "FULL MATCH"
         self.runtime_mode_label.config(
@@ -1372,8 +1531,12 @@ class ZedsuApp:
 
         blockers = list(get_required_setup_issues(self.config))
         window_title = self.config.get("game_window_title", "").strip()
-        if self.config.get("window_focus_required", True) and not find_window_by_title(window_title):
+        window_match = find_window_by_title(window_title) if window_title else None
+        if self.config.get("window_focus_required", True) and not window_match:
             blockers.append(f"Open the game window that matches: {window_title or '[empty title]'}")
+
+        portability = get_runtime_portability_report(self.config, window_rect=self._selected_window_rect())
+        blockers.extend(portability["blockers"])
 
         if blockers:
             self.notebook.select(self.setup_tab if "window" in blockers[0].lower() else self.assets_tab)
@@ -1393,6 +1556,8 @@ class ZedsuApp:
                 "Combat Equipped Indicator is not captured yet. Starting with fallback melee-slot heuristics.",
                 is_error=True,
             )
+        for warning in portability["warnings"]:
+            self.log(warning, is_error=True)
         self.log("Bot started.")
         self.root.after(200, self.hide_for_runtime)
         threading.Thread(target=self.engine.bot_loop, daemon=True).start()

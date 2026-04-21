@@ -5,7 +5,12 @@ import pyautogui
 from PIL import Image, ImageEnhance, ImageTk
 
 from src.core.controller import human_click
-from src.utils.config import resolve_path
+from src.utils.config import get_asset_capture_context, resolve_path
+
+
+_IMAGE_CACHE = {}
+_SCALED_IMAGE_CACHE = {}
+_SCALE_HINT_CACHE = {}
 
 
 def _normalize_region(region):
@@ -20,27 +25,142 @@ def _normalize_region(region):
     return left, top, width, height
 
 
+def _region_size(region):
+    if not region or len(region) != 4:
+        return None
+    left, top, right, bottom = [int(value) for value in region]
+    width = right - left
+    height = bottom - top
+    if width <= 0 or height <= 0:
+        return None
+    return [width, height]
+
+
+def _load_template(path):
+    modified = os.path.getmtime(path)
+    cache_entry = _IMAGE_CACHE.get(path)
+    if cache_entry and cache_entry["mtime"] == modified:
+        return cache_entry["image"]
+
+    with Image.open(path) as image:
+        loaded = image.convert("RGB")
+
+    _IMAGE_CACHE[path] = {"mtime": modified, "image": loaded}
+    stale_keys = [key for key in _SCALED_IMAGE_CACHE if key[0] == path and key[1] != modified]
+    for stale_key in stale_keys:
+        _SCALED_IMAGE_CACHE.pop(stale_key, None)
+    return loaded
+
+
+def _scaled_template(path, scale):
+    base_image = _load_template(path)
+    modified = os.path.getmtime(path)
+    rounded_scale = round(float(scale), 4)
+    cache_key = (path, modified, rounded_scale)
+
+    cached = _SCALED_IMAGE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    if abs(rounded_scale - 1.0) < 0.01:
+        _SCALED_IMAGE_CACHE[cache_key] = base_image
+        return base_image
+
+    width = max(1, int(round(base_image.width * rounded_scale)))
+    height = max(1, int(round(base_image.height * rounded_scale)))
+    resized = base_image.resize((width, height), Image.Resampling.LANCZOS)
+    _SCALED_IMAGE_CACHE[cache_key] = resized
+    return resized
+
+
+def _capture_haystack(normalized_region):
+    try:
+        if normalized_region:
+            left, top, width, height = normalized_region
+            return pyautogui.screenshot(region=(left, top, width, height)).convert("RGB"), (left, top)
+        return pyautogui.screenshot().convert("RGB"), (0, 0)
+    except Exception:
+        return None, (0, 0)
+
+
+def _build_scale_candidates(img_name, config, current_size):
+    candidates = []
+    hinted_scale = _SCALE_HINT_CACHE.get(img_name)
+    if hinted_scale:
+        candidates.append(hinted_scale)
+
+    asset_context = get_asset_capture_context(config, img_name)
+    capture_size = asset_context.get("window_size")
+    if capture_size and current_size:
+        ratio_w = current_size[0] / max(1, capture_size[0])
+        ratio_h = current_size[1] / max(1, capture_size[1])
+        anchor = max(0.6, min(1.5, (ratio_w + ratio_h) / 2.0))
+        candidates.extend([anchor, anchor * 0.97, anchor * 1.03])
+        if abs(anchor - 1.0) >= 0.16:
+            candidates.extend([anchor * 0.92, anchor * 1.08])
+
+    candidates.extend([1.0, 0.94, 1.06])
+
+    unique = []
+    for scale in candidates:
+        normalized = max(0.6, min(1.5, round(float(scale), 4)))
+        if all(abs(normalized - existing) >= 0.015 for existing in unique):
+            unique.append(normalized)
+        if len(unique) >= 6:
+            break
+    return unique
+
+
+def _offset_box(result, offset_x, offset_y):
+    if offset_x == 0 and offset_y == 0:
+        return result
+    return type(result)(
+        int(result.left + offset_x),
+        int(result.top + offset_y),
+        int(result.width),
+        int(result.height),
+    )
+
+
 def locate_image(img_name, config, confidence=None, region=None):
     path = resolve_path(config.get("images", {}).get(img_name))
     if not path or not os.path.exists(path):
         return None
 
-    conf = confidence if confidence is not None else config.get("confidence", 0.8)
+    conf = float(confidence if confidence is not None else config.get("confidence", 0.8))
     normalized_region = _normalize_region(region)
+    haystack, offset = _capture_haystack(normalized_region)
+    if haystack is None:
+        return None
+
+    haystack_width, haystack_height = haystack.size
+    current_size = _region_size(region)
     attempts = (
-        {"grayscale": True, "confidence": conf, "region": normalized_region},
-        {"grayscale": False, "confidence": max(0.55, conf - 0.05), "region": normalized_region},
-        {"grayscale": False, "confidence": max(0.5, conf - 0.15), "region": normalized_region},
+        {"grayscale": True, "confidence": conf},
+        {"grayscale": False, "confidence": max(0.58, conf - 0.04)},
+        {"grayscale": False, "confidence": max(0.5, conf - 0.12)},
     )
 
-    for attempt in attempts:
-        try:
-            params = {key: value for key, value in attempt.items() if value is not None}
-            result = pyautogui.locateOnScreen(path, **params)
-            if result:
-                return result
-        except Exception:
+    for scale in _build_scale_candidates(img_name, config, current_size):
+        needle = _scaled_template(path, scale)
+        if needle.width > haystack_width or needle.height > haystack_height:
             continue
+
+        for attempt in attempts:
+            try:
+                result = pyautogui.locate(
+                    needle,
+                    haystack,
+                    grayscale=attempt["grayscale"],
+                    confidence=attempt["confidence"],
+                )
+            except Exception:
+                result = None
+
+            if result:
+                _SCALE_HINT_CACHE[img_name] = scale
+                return _offset_box(result, offset[0], offset[1])
+
     return None
 
 
