@@ -430,6 +430,111 @@ class ZedsuApp:
                         value="pyautogui").pack(side=tk.LEFT)
         ttk.Label(backend_frame, text="← OpenCV recommended", style="Muted.TLabel").pack(side=tk.RIGHT)
 
+        # Combat Detection (Phase 5 Smart Combat)
+        combat_frame = CollapsibleFrame(content, "Combat Detection", self.colors, default_open=False)
+        combat_frame.pack(fill=tk.X, pady=(4, 0))
+        combat_content = combat_frame.get_content()
+
+        combat_intro = ttk.Label(
+            combat_content, wraplength=580,
+            text="Pixel-perfect combat detection using HSV color scanning. Pick each region by clicking the button "
+                 "and selecting the area on your screen. Use FIRST-PERSON camera for best results.",
+            style="Muted.TLabel"
+        )
+        combat_intro.pack(anchor=tk.W, pady=(4, 4))
+
+        # Smart combat toggle
+        smart_row = ttk.Frame(combat_content, style="Card.TFrame")
+        smart_row.pack(fill=tk.X, pady=2)
+        self.smart_combat_var = tk.BooleanVar(
+            value=self.config.get("combat_settings", {}).get("smart_combat_enabled", True)
+        )
+        ttk.Checkbutton(smart_row, text="Enable Smart Combat (Phase 5) — intelligent state machine",
+                        variable=self.smart_combat_var).pack(side=tk.LEFT)
+        ttk.Label(smart_row, text="← recommended", style="Small.TLabel").pack(side=tk.LEFT, padx=(4, 0))
+
+        # First-person camera toggle
+        fp_row = ttk.Frame(combat_content, style="Card.TFrame")
+        fp_row.pack(fill=tk.X, pady=2)
+        self.first_person_var = tk.BooleanVar(
+            value=self.config.get("combat_settings", {}).get("first_person", True)
+        )
+        ttk.Checkbutton(fp_row, text="First-Person Camera (recommended for detection)",
+                        variable=self.first_person_var).pack(side=tk.LEFT)
+
+        # Region pickers
+        region_defs = [
+            ("green_hp_bar", "Enemy HP Bar (green)"),
+            ("red_dmg_numbers", "Damage Numbers (red)"),
+            ("player_hp_bar", "Player HP Bar"),
+            ("incombat_timer", "INCOMBAT Timer"),
+            ("kill_icon", "Kill Icon (skull)"),
+        ]
+        self.combat_region_vars = {}
+        regions = self.config.get("combat_regions", {})
+        for region_key, label in region_defs:
+            rrow = ttk.Frame(combat_content, style="Card.TFrame")
+            rrow.pack(fill=tk.X, pady=1)
+            ttk.Label(rrow, text=label, width=25).pack(side=tk.LEFT)
+            ttk.Button(rrow, text="Pick Region",
+                command=lambda k=region_key: self._pick_combat_region(k),
+                style="Icon.TButton").pack(side=tk.LEFT)
+            region = regions.get(region_key, {})
+            status = "enabled" if region.get("enabled") else "not set"
+            ttk.Label(rrow, text=f"[{status}]", style="Small.TLabel").pack(side=tk.LEFT, padx=(4, 0))
+
+        # Test combat detection button
+        test_row = ttk.Frame(combat_content, style="Card.TFrame")
+        test_row.pack(fill=tk.X, pady=4)
+        ttk.Button(test_row, text="Test Combat Detection",
+                   command=self._test_combat_detection,
+                   style="Section.TButton").pack(side=tk.LEFT)
+        self.combat_debug_label = ttk.Label(test_row, text="", style="Small.TLabel")
+        self.combat_debug_label.pack(side=tk.LEFT, padx=(8, 0))
+
+        # HSV Color Filter
+        hsv_frame = CollapsibleFrame(content, "HSV Color Filter", self.colors, default_open=False)
+        hsv_frame.pack(fill=tk.X, pady=(4, 0))
+        hsv_content = hsv_frame.get_content()
+
+        hsv_intro = ttk.Label(hsv_content, wraplength=580,
+            text="HSV pre-filter speeds up detection by checking color presence before template matching. "
+                 "Enable and set ranges for Ultimate Bar or Return To Lobby to reduce CPU usage.",
+            style="Muted.TLabel")
+        hsv_intro.pack(anchor=tk.W, pady=(4, 6))
+
+        self.hsv_vars = {}
+        HSV_KEYS = ["ultimate", "return_to_lobby_alone"]
+        for img_key in HSV_KEYS:
+            meta = IMAGE_SPECS[img_key]
+            hsv = self.config.get("hsv_settings", {}).get(img_key) or {}
+
+            row = ttk.Frame(hsv_content, style="Card.TFrame")
+            row.pack(fill=tk.X, pady=2)
+
+            var_enabled = tk.BooleanVar(value=bool(hsv.get("enabled", False)))
+            self.hsv_vars[(img_key, "enabled")] = var_enabled
+            ttk.Checkbutton(row, text=meta["label"], variable=var_enabled,
+                           command=lambda k=img_key: self._on_hsv_toggle(k)).pack(side=tk.LEFT)
+
+            fields = [
+                (f"{img_key}_h_min", "H:", 0, 179, "h_min"),
+                (f"{img_key}_h_max", "H:", 0, 179, "h_max"),
+                (f"{img_key}_s_min", "S:", 0, 255, "s_min"),
+                (f"{img_key}_s_max", "S:", 0, 255, "s_max"),
+                (f"{img_key}_v_min", "V:", 0, 255, "v_min"),
+                (f"{img_key}_v_max", "V:", 0, 255, "v_max"),
+            ]
+            for fk, label, fmin, fmax, field_key in fields:
+                lbl = ttk.Label(row, text=label, style="Muted.TLabel")
+                lbl.pack(side=tk.LEFT, padx=(6, 0))
+                var = tk.IntVar(value=int(hsv.get(field_key, fmin) if hsv else fmin))
+                self.hsv_vars[(img_key, field_key)] = var
+                entry = ttk.Entry(row, textvariable=var, width=4, justify="center")
+                entry.pack(side=tk.LEFT)
+
+            self._apply_hsv_row_state(var_enabled.get(), row)
+
         # Webhook
         webhook_row = ttk.Frame(content, style="Card.TFrame")
         webhook_row.pack(fill=tk.X, pady=(4, 0))
@@ -607,6 +712,13 @@ class ZedsuApp:
         self.config["auto_focus_window"] = bool(self.auto_focus_var.get())
         self.config["detection_backend"] = self.backend_var.get()
 
+        self._save_hsv_settings()
+
+        # Combat settings (Phase 5)
+        combat_settings = self.config.setdefault("combat_settings", {})
+        combat_settings["smart_combat_enabled"] = bool(self.smart_combat_var.get())
+        combat_settings["first_person"] = bool(self.first_person_var.get())
+
         new_keys = {}
         for key_id, variable in self.key_vars.items():
             value = variable.get().strip().lower()
@@ -643,6 +755,56 @@ class ZedsuApp:
                     status.config(text="✓", foreground=self.colors["GREEN"])
                 else:
                     status.config(text="❌", foreground=self.colors["RED"])
+
+    def _on_hsv_toggle(self, img_key):
+        var_enabled = self.hsv_vars.get((img_key, "enabled"))
+        if not var_enabled:
+            return
+        # Find the row frame for this asset (walk widget tree to find it)
+        for widget in self.settings_panel.content_frame.winfo_children():
+            if hasattr(widget, "winfo_children"):
+                for child in widget.winfo_children():
+                    if isinstance(child, ttk.Frame):
+                        children = child.winfo_children()
+                        if children and isinstance(children[0], ttk.Checkbutton):
+                            check_text = children[0].cget("text")
+                            if check_text == IMAGE_SPECS.get(img_key, {}).get("label", ""):
+                                self._apply_hsv_row_state(var_enabled.get(), child)
+                                break
+
+    def _apply_hsv_row_state(self, enabled, row):
+        for child in row.winfo_children():
+            if isinstance(child, ttk.Entry):
+                child.configure(state="normal" if enabled else "disabled")
+
+    def _save_hsv_settings(self):
+        HSV_KEYS = ["ultimate", "return_to_lobby_alone"]
+        for img_key in HSV_KEYS:
+            enabled = bool(self.hsv_vars.get((img_key, "enabled"), tk.BooleanVar()).get())
+            if not enabled:
+                self.config.setdefault("hsv_settings", {})[img_key] = {
+                    "enabled": False,
+                    "h_min": 0, "h_max": 179,
+                    "s_min": 0, "s_max": 255,
+                    "v_min": 0, "v_max": 255,
+                }
+                continue
+
+            values = {}
+            for field in ["h_min", "h_max", "s_min", "s_max", "v_min", "v_max"]:
+                var = self.hsv_vars.get((img_key, field))
+                if var:
+                    try:
+                        values[field] = max(0, min(255, int(var.get())))
+                    except (ValueError, tk.TclError):
+                        values[field] = 0
+
+            # Clamp specific ranges
+            values["h_min"] = min(values.get("h_min", 0), 179)
+            values["h_max"] = min(values.get("h_max", 179), 179)
+            values["enabled"] = True
+
+            self.config.setdefault("hsv_settings", {})[img_key] = values
 
     def refresh_runtime_status(self):
         records = get_asset_records(self.config)
@@ -996,7 +1158,64 @@ class ZedsuApp:
             self.capture_queue = []
             self.log("Capture cancelled.", is_error=True)
 
-    def pick_coord(self, key):
+    def _pick_combat_region(self, region_key):
+        """Open screen capture tool to pick a combat detection region."""
+        if self.is_running:
+            return
+        window_rect = self._selected_window_rect()
+
+        def launch_tool(screenshot):
+            from src.core.vision import ScreenCaptureTool
+            ScreenCaptureTool(
+                parent=self.root,
+                screenshot=screenshot,
+                key=region_key,
+                assets_dir=ASSETS_DIR,
+                on_complete=lambda result: self._complete_combat_region_pick(region_key, result, window_rect),
+                on_cancel=self.restore_main_window,
+                save_name=f"combat_region_{region_key}.png",
+                title=region_key.replace("_", " ").title(),
+            )
+        self._begin_screen_tool(launch_tool)
+
+    def _complete_combat_region_pick(self, region_key, result, window_rect=None):
+        """Save the picked combat region as screen ratios."""
+        from src.utils.config import set_combat_region
+        if not result:
+            self.restore_main_window()
+            return
+        l, t, r, b = result[0], result[1], result[2], result[3]
+        w, h = window_rect[2] - window_rect[0], window_rect[3] - window_rect[1]
+        x_ratio = (l - window_rect[0]) / w if w > 0 else 0
+        y_ratio = (t - window_rect[1]) / h if h > 0 else 0
+        w_ratio = (r - l) / w if w > 0 else 0
+        h_ratio = (b - t) / h if h > 0 else 0
+        set_combat_region(self.config, region_key, x_ratio, y_ratio, w_ratio, h_ratio)
+        save_config(self.config)
+        self.config = load_config()
+        self.restore_main_window()
+        self.log(f"Combat region saved: {region_key}")
+
+    def _test_combat_detection(self):
+        """Run one combat signal scan and display results."""
+        try:
+            from src.core.vision import get_combat_detector
+            detector = get_combat_detector(self.config)
+            signals = detector.scan_all_signals()
+            lines = []
+            lines.append(f"enemy_nearby={signals.get('enemy_nearby', False)} "
+                         f"(green={signals.get('_green_ratio', 0):.5f})")
+            lines.append(f"hit_confirmed={signals.get('hit_confirmed', False)} "
+                         f"(red={signals.get('_red_ratio', 0):.5f})")
+            lines.append(f"player_hp_low={signals.get('player_hp_low', False)} "
+                         f"(green={signals.get('_player_green_ratio', 0):.5f})")
+            lines.append(f"in_combat={signals.get('in_combat', False)} "
+                         f"(white={signals.get('_incombat_ratio', 0):.5f})")
+            lines.append(f"kill_confirmed={signals.get('kill_confirmed', False)} "
+                         f"(white={signals.get('_kill_ratio', 0):.5f})")
+            self.combat_debug_label.config(text=" | ".join(lines))
+        except Exception as exc:
+            self.combat_debug_label.config(text=f"Error: {exc}")
         if self.is_running:
             return
         window_rect = self._selected_window_rect()

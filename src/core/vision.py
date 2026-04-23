@@ -1,6 +1,7 @@
 import os
 import time
 import tkinter as tk
+from collections import namedtuple
 
 import pyautogui
 from PIL import Image, ImageEnhance, ImageTk
@@ -16,6 +17,9 @@ except ImportError:
     _CV2_AVAILABLE = False
     np = None
     cv2 = None
+
+# Reusable box type shared by _cv2_locate_image
+_Box = namedtuple("Box", ["left", "top", "width", "height"])
 
 from src.core.controller import human_click
 from src.utils.config import get_asset_capture_context, resolve_path
@@ -128,6 +132,82 @@ def _mss_capture_haystack(normalized_region):
             return img, (left, top)
     except Exception:
         return None, (0, 0)
+
+
+def _hsv_prefilter(img_name, config, region=None, search_context=None):
+    """Layer 1: fast HSV color pre-filter. Returns True if color present, None to skip, False if absent."""
+    if not _MSS_AVAILABLE or np is None or cv2 is None:
+        return None
+
+    hsv_settings = (config.get("hsv_settings") or {}).get(img_name)
+    if not hsv_settings or not hsv_settings.get("enabled"):
+        return None
+
+    h_min = int(hsv_settings.get("h_min", 0))
+    h_max = int(hsv_settings.get("h_max", 179))
+    s_min = int(hsv_settings.get("s_min", 0))
+    s_max = int(hsv_settings.get("s_max", 255))
+    v_min = int(hsv_settings.get("v_min", 0))
+    v_max = int(hsv_settings.get("v_max", 255))
+
+    # Use provided search context or capture fresh
+    if search_context and search_context.get("image") is not None:
+        haystack_rgb = search_context["image"]
+        offset = search_context.get("offset", (0, 0))
+        bounds = search_context.get("region")
+    else:
+        window_title = config.get("game_window_title", "")
+        if region:
+            normalized = _normalize_region(region) if isinstance(region, (tuple, list)) else None
+        elif window_title:
+            region_rect = get_window_rect(str(window_title))
+            normalized = _normalize_region(region_rect) if region_rect else None
+        else:
+            normalized = None
+
+        haystack_rgb, offset = _mss_capture_haystack(normalized)
+        if haystack_rgb is None:
+            return False
+        bounds = (
+            (offset[0], offset[1],
+             offset[0] + haystack_rgb.shape[1],
+             offset[1] + haystack_rgb.shape[0])
+            if normalized
+            else None
+        )
+
+    # Restrict search to the hint region for this asset
+    search_area = None
+    if bounds:
+        for ratio_region in _SEARCH_HINT_RATIOS.get(img_name, ()):
+            search_area = _region_from_ratio_area(ratio_region, bounds)
+            if search_area:
+                break
+
+    if search_area:
+        bx0, by0, bx1, by1 = search_area
+        # Clamp to image bounds
+        h, w = haystack_rgb.shape[:2]
+        x0 = max(0, min(w, bx0))
+        y0 = max(0, min(h, by0))
+        x1 = max(0, min(w, bx1))
+        y1 = max(0, min(h, by1))
+        if x1 > x0 and y1 > y0:
+            haystack_rgb = haystack_rgb[y0:y1, x0:x1]
+
+    # BGR -> HSV
+    hsv = cv2.cvtColor(haystack_rgb, cv2.COLOR_RGB2HSV)
+
+    # Handle hue wrap-around: if h_min > h_max, the range crosses 0 (red wrap)
+    if h_min <= h_max:
+        mask = cv2.inRange(hsv, np.array([h_min, s_min, v_min]), np.array([h_max, s_max, v_max]))
+    else:
+        mask1 = cv2.inRange(hsv, np.array([0, s_min, v_min]), np.array([h_max, s_max, v_max]))
+        mask2 = cv2.inRange(hsv, np.array([h_min, s_min, v_min]), np.array([179, s_max, v_max]))
+        mask = mask1 | mask2
+
+    ratio = cv2.countNonZero(mask) / max(1, mask.size)
+    return ratio >= 0.003
 
 
 # Global window scale reference (used by Phase 7 window resize detection)
@@ -397,13 +477,12 @@ def _cv2_locate_image(img_name, config, confidence=None, region=None, search_con
                 if max_val >= attempt["conf"]:
                     _SCALE_HINT_CACHE[img_name] = scale
 
-                    class FakeBox:
-                        pass
-                    box = FakeBox()
-                    box.left = max_loc[0] + offset[0]
-                    box.top = max_loc[1] + offset[1]
-                    box.width = scaled_w
-                    box.height = scaled_h
+                    box = _Box(
+                        left=max_loc[0] + offset[0],
+                        top=max_loc[1] + offset[1],
+                        width=scaled_w,
+                        height=scaled_h,
+                    )
 
                     # Build active_context for _register_last_match
                     active_context = {
@@ -435,6 +514,11 @@ def locate_image(img_name, config, confidence=None, region=None, search_context=
     path = resolve_path(config.get("images", {}).get(img_name))
     if not path or not os.path.exists(path):
         return None
+
+    # Layer 1: HSV pre-filter (fast color check before expensive template match)
+    hsv_result = _hsv_prefilter(img_name, config, region, search_context)
+    if hsv_result is False:
+        return None  # Color definitely absent — skip template matching
 
     backend = config.get("detection_backend", "auto")
     if backend == "auto":
@@ -682,3 +766,260 @@ class ScreenCaptureTool:
         self.result_path = save_path
         self.on_complete(self.result_path)
         self.top.destroy()
+
+
+# ============================================================
+# PHASE 5: COMBAT SIGNAL DETECTOR
+# ============================================================
+
+class CombatSignalDetector:
+    """
+    Fast pixel-perfect detection for combat signals in GPO BR.
+    Uses HSV color region scanning — inspired by Deepwoken Fishing macro approach.
+    All regions are configurable and user-picked via Settings UI.
+
+    Detection signals:
+    - green_hp_bar: enemy close enough to show HP bar above head
+    - red_dmg_numbers: damage numbers flying up = confirmed hit
+    - player_hp_bar: player's own HP bar (for FLEEING trigger)
+    - incombat_timer: INCOMBAT indicator active at top-center
+    - kill_icon: skull icon at top-right (kill confirmed)
+    """
+
+    HSV_RANGES = {
+        "green_hp_bar": {
+            "lower": None,
+            "upper": None,
+        },
+        "red_dmg_numbers": {
+            "lower1": None,
+            "upper1": None,
+            "lower2": None,
+            "upper2": None,
+        },
+        "player_hp_bar": {
+            "lower": None,
+            "upper": None,
+        },
+        "incombat_timer": {
+            "lower": None,
+            "upper": None,
+        },
+        "kill_icon": {
+            "lower": None,
+            "upper": None,
+        },
+    }
+
+    def __init__(self, config):
+        self.config = config
+        self._prev_green_frame_count = 0
+        self._prev_red_frame_count = 0
+        self._prev_incombat_frame_count = 0
+        self._kill_count = 0
+        self._init_hsv_ranges()
+
+    def _init_hsv_ranges(self):
+        """Initialize HSV ranges lazily (requires cv2)."""
+        if not _CV2_AVAILABLE or np is None:
+            return
+        self.HSV_RANGES = {
+            "green_hp_bar": {
+                "lower": np.array([35, 60, 60], dtype=np.uint8),
+                "upper": np.array([85, 255, 255], dtype=np.uint8),
+            },
+            "red_dmg_numbers": {
+                "lower1": np.array([0, 100, 100], dtype=np.uint8),
+                "upper1": np.array([10, 255, 255], dtype=np.uint8),
+                "lower2": np.array([170, 100, 100], dtype=np.uint8),
+                "upper2": np.array([180, 255, 255], dtype=np.uint8),
+            },
+            "player_hp_bar": {
+                "lower": np.array([35, 60, 60], dtype=np.uint8),
+                "upper": np.array([85, 255, 255], dtype=np.uint8),
+            },
+            "incombat_timer": {
+                "lower": np.array([0, 0, 200], dtype=np.uint8),
+                "upper": np.array([180, 40, 255], dtype=np.uint8),
+            },
+            "kill_icon": {
+                "lower": np.array([0, 0, 180], dtype=np.uint8),
+                "upper": np.array([180, 30, 255], dtype=np.uint8),
+            },
+        }
+
+    def _get_region_bounds(self, region_name):
+        """Get absolute pixel region from config (ratios -> pixels)."""
+        from src.utils.config import get_combat_region
+        return get_combat_region(self.config, region_name)
+
+    def _get_threshold(self, region_name, default):
+        """Get detection threshold for region."""
+        from src.utils.config import get_combat_threshold
+        return get_combat_threshold(self.config, region_name, default)
+
+    def _capture_region(self, region):
+        """Fast MSS capture of a specific pixel region. Returns RGB numpy array."""
+        if not _MSS_AVAILABLE or np is None:
+            return None
+        if not region or len(region) != 4:
+            return None
+        try:
+            with mss.mss() as sct:
+                monitor = {
+                    "left": int(region[0]),
+                    "top": int(region[1]),
+                    "width": int(region[2] - region[0]),
+                    "height": int(region[3] - region[1]),
+                }
+                screenshot = sct.grab(monitor)
+                img = np.array(screenshot)
+                if img.shape[2] == 4:
+                    img = img[:, :, :3][:, :, ::-1]  # BGRA -> RGB
+                return img
+        except Exception:
+            return None
+
+    def _count_color_pixels(self, img, signal_name):
+        """Count pixels matching a signal's color range. Returns (count, total, ratio)."""
+        if img is None or img.size == 0 or not _CV2_AVAILABLE:
+            return 0, 0, 0.0
+
+        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        total = hsv.shape[0] * hsv.shape[1]
+
+        ranges = self.HSV_RANGES.get(signal_name, {})
+        if "lower" in ranges and "upper" in ranges:
+            lower = ranges["lower"]
+            upper = ranges["upper"]
+            mask = cv2.inRange(hsv, lower, upper)
+        elif "lower1" in ranges:
+            lower1, upper1 = ranges["lower1"], ranges["upper1"]
+            lower2, upper2 = ranges["lower2"], ranges["upper2"]
+            mask1 = cv2.inRange(hsv, lower1, upper1)
+            mask2 = cv2.inRange(hsv, lower2, upper2)
+            mask = cv2.bitwise_or(mask1, mask2)
+        else:
+            return 0, total, 0.0
+
+        count = cv2.countNonZero(mask)
+        return count, total, count / max(1, total)
+
+    def scan_all_signals(self):
+        """
+        Scan all configured combat signals. Returns dict of signal -> bool.
+        Call this once per combat tick (< 20ms total for all 5 regions).
+        """
+        results = {}
+
+        # 1. GREEN HP BAR — primary enemy-close signal
+        green_region = self._get_region_bounds("green_hp_bar")
+        if green_region:
+            img = self._capture_region(green_region)
+            count, total, ratio = self._count_color_pixels(img, "green_hp_bar")
+            threshold = self._get_threshold("green_hp_bar", 0.004)
+            green_detected = ratio >= threshold
+            if green_detected:
+                self._prev_green_frame_count += 1
+            else:
+                self._prev_green_frame_count = max(0, self._prev_green_frame_count - 1)
+            results["enemy_nearby"] = self._prev_green_frame_count >= 2
+            results["_green_ratio"] = ratio
+        else:
+            results["enemy_nearby"] = False
+            results["_green_ratio"] = 0.0
+
+        # 2. RED DAMAGE NUMBERS — hit confirmation
+        red_region = self._get_region_bounds("red_dmg_numbers")
+        if red_region:
+            img = self._capture_region(red_region)
+            count, total, ratio = self._count_color_pixels(img, "red_dmg_numbers")
+            threshold = self._get_threshold("red_dmg_numbers", 0.001)
+            red_detected = ratio >= threshold
+            if red_detected:
+                self._prev_red_frame_count += 1
+            else:
+                self._prev_red_frame_count = max(0, self._prev_red_frame_count - 1)
+            results["hit_confirmed"] = self._prev_red_frame_count >= 1
+            results["_red_ratio"] = ratio
+        else:
+            results["hit_confirmed"] = False
+            results["_red_ratio"] = 0.0
+
+        # 3. PLAYER HP BAR — for FLEEING trigger
+        player_region = self._get_region_bounds("player_hp_bar")
+        if player_region:
+            img = self._capture_region(player_region)
+            count, total, ratio = self._count_color_pixels(img, "player_hp_bar")
+            threshold = self._get_threshold("player_hp_bar", 0.005)
+            results["player_hp_low"] = ratio < threshold
+            results["_player_green_ratio"] = ratio
+        else:
+            results["player_hp_low"] = False
+            results["_player_green_ratio"] = 0.0
+
+        # 4. INCOMBAT TIMER — combat is active
+        incombat_region = self._get_region_bounds("incombat_timer")
+        if incombat_region:
+            img = self._capture_region(incombat_region)
+            count, total, ratio = self._count_color_pixels(img, "incombat_timer")
+            threshold = self._get_threshold("incombat_timer", 0.002)
+            incombat_detected = ratio >= threshold
+            if incombat_detected:
+                self._prev_incombat_frame_count += 1
+            else:
+                self._prev_incombat_frame_count = max(0, self._prev_incombat_frame_count - 1)
+            results["in_combat"] = self._prev_incombat_frame_count >= 2
+            results["_incombat_ratio"] = ratio
+        else:
+            results["in_combat"] = False
+            results["_incombat_ratio"] = 0.0
+
+        # 5. KILL ICON — kill confirmed
+        kill_region = self._get_region_bounds("kill_icon")
+        if kill_region:
+            img = self._capture_region(kill_region)
+            count, total, ratio = self._count_color_pixels(img, "kill_icon")
+            threshold = self._get_threshold("kill_icon", 0.001)
+            results["kill_confirmed"] = ratio >= threshold
+            results["_kill_ratio"] = ratio
+        else:
+            results["kill_confirmed"] = False
+            results["_kill_ratio"] = 0.0
+
+        return results
+
+    def get_debug_info(self):
+        """Return current signal ratios for debugging/calibration."""
+        return {
+            "green_frame_count": self._prev_green_frame_count,
+            "red_frame_count": self._prev_red_frame_count,
+            "incombat_frame_count": self._prev_incombat_frame_count,
+            "kill_count": self._kill_count,
+        }
+
+    def reset(self):
+        """Clear frame counters — call on state transitions."""
+        self._prev_green_frame_count = 0
+        self._prev_red_frame_count = 0
+        self._prev_incombat_frame_count = 0
+
+    def increment_kill(self):
+        self._kill_count += 1
+
+    def get_kill_count(self):
+        return self._kill_count
+
+
+_combat_detector = None
+
+
+def get_combat_detector(config):
+    """Get or create combat signal detector singleton."""
+    global _combat_detector
+    if _combat_detector is None:
+        _combat_detector = CombatSignalDetector(config)
+    else:
+        _combat_detector.config = config
+    return _combat_detector
+

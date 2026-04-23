@@ -1,12 +1,19 @@
 import os
 import random
 import time
+from enum import Enum, auto
 
 import pyautogui
 import pydirectinput
 
 from src.core.controller import human_click, sleep_with_stop
-from src.core.vision import find_and_click, is_image_visible, locate_image
+from src.core.vision import (
+    capture_search_context,
+    find_and_click,
+    get_combat_detector,
+    is_image_visible,
+    locate_image,
+)
 from src.utils.config import (
     CAPTURES_DIR,
     is_asset_custom,
@@ -24,6 +31,216 @@ from src.utils.windows import (
     is_window_active,
 )
 
+
+# ============================================================
+# PHASE 5: COMBAT STATE MACHINE
+# ============================================================
+
+class CombatState(Enum):
+    IDLE = auto()
+    SCANNING = auto()
+    APPROACH = auto()
+    ENGAGED = auto()
+    FLEEING = auto()
+    SPECTATING = auto()
+    POST_MATCH = auto()
+
+
+class CombatStateMachine:
+    """
+    Intelligent combat FSM for GPO BR.
+
+    Transition rules:
+    IDLE → SCANNING: match starts (ultimate bar visible)
+    SCANNING → APPROACH: enemy detected (green HP bar or frame diff)
+    SCANNING → ENGAGED: direct close-range signal
+    APPROACH → ENGAGED: enemy close enough (green HP bar detected)
+    ENGAGED → FLEEING: player HP drops below threshold
+    ENGAGED → SCANNING: enemy lost (no signals for N frames)
+    ENGAGED → SPECTATING: death detected
+    FLEEING → SCANNING: player HP recovered
+    FLEEING → SPECTATING: player died
+    Any → SPECTATING: death confirmed
+    SPECTATING → POST_MATCH: results screen
+    POST_MATCH → IDLE: lobby
+    """
+
+    def __init__(self, engine):
+        self.engine = engine
+        self.state = CombatState.IDLE
+        self._state_enter_time = 0
+        self._last_enemy_detected = 0
+        self._last_incombat_time = 0
+        self._kill_count = 0
+        self._consecutive_engaged_frames = 0
+        self._consecutive_no_signal_frames = 0
+        self._scan_direction = 1
+        self._scan_timer = 0
+        self._last_kill_detected = False
+
+        cfg = engine.app.config.get("combat_settings", {})
+        self.disengage_timeout_sec = cfg.get("disengage_timeout_sec", 5.0)
+        self.fleeing_hp_threshold = cfg.get("fleeing_hp_threshold", 0.25)
+        self.dodge_chance = cfg.get("dodge_chance", 0.12)
+        self.camera_scan_interval = cfg.get("camera_scan_interval", 0.5)
+        self.kill_steal_resilient = cfg.get("kill_steal_resilient", True)
+
+    @property
+    def state_name(self):
+        return self.state.name
+
+    def _transition_to(self, new_state):
+        old = self.state
+        self.state = new_state
+        self._state_enter_time = time.time()
+        self.engine.log(f"[COMBAT] {old.name} → {new_state.name}")
+        self._consecutive_engaged_frames = 0
+        self._consecutive_no_signal_frames = 0
+
+    def update(self):
+        """Called every combat tick (~500ms). Returns action dict for engine."""
+        now = time.time()
+
+        detector = self.engine._combat_detector
+        if detector is None:
+            return {"action": "idle"}
+
+        signals = detector.scan_all_signals()
+
+        enemy_nearby = signals.get("enemy_nearby", False)
+        hit_confirmed = signals.get("hit_confirmed", False)
+        in_combat = signals.get("in_combat", False)
+        player_hp_low = signals.get("player_hp_low", False)
+        kill_confirmed = signals.get("kill_confirmed", False)
+
+        if kill_confirmed and not self._last_kill_detected:
+            self._kill_count += 1
+            self.engine.log(f"[COMBAT] Kill #{self._kill_count} confirmed!")
+        self._last_kill_detected = kill_confirmed
+
+        self._last_incombat_time = now if in_combat else self._last_incombat_time
+
+        if enemy_nearby or in_combat or hit_confirmed:
+            self._consecutive_engaged_frames += 1
+            self._consecutive_no_signal_frames = 0
+        else:
+            self._consecutive_no_signal_frames += 1
+            self._consecutive_engaged_frames = max(0, self._consecutive_engaged_frames - 1)
+
+        target = self._compute_target_state(
+            enemy_nearby=enemy_nearby,
+            in_combat=in_combat,
+            hit_confirmed=hit_confirmed,
+            player_hp_low=player_hp_low,
+            now=now,
+        )
+        if target != self.state:
+            self._transition_to(target)
+
+        return self._execute_state(signals, now)
+
+    def _compute_target_state(self, enemy_nearby, in_combat, hit_confirmed, player_hp_low, now):
+        """Compute the target state based on signals."""
+        s = self.state
+
+        if self.engine.detect_spectating_state(search_context=self.engine.build_search_context()):
+            return CombatState.SPECTATING
+
+        if player_hp_low and s not in (CombatState.SPECTATING, CombatState.POST_MATCH, CombatState.IDLE):
+            return CombatState.FLEEING
+
+        if s == CombatState.FLEEING and not player_hp_low:
+            return CombatState.SCANNING
+
+        if enemy_nearby or in_combat or hit_confirmed:
+            if s != CombatState.ENGAGED:
+                return CombatState.ENGAGED
+            return s
+
+        no_signal_duration = now - max(self._last_enemy_detected, self._last_incombat_time)
+        if no_signal_duration > self.disengage_timeout_sec and s == CombatState.ENGAGED:
+            return CombatState.SCANNING
+
+        if s not in (CombatState.IDLE, CombatState.SPECTATING, CombatState.POST_MATCH):
+            if not enemy_nearby and not in_combat:
+                return CombatState.SCANNING
+
+        return s
+
+    def _execute_state(self, signals, now):
+        """Execute behavior for current state. Returns action dict."""
+        s = self.state
+
+        if s == CombatState.SCANNING:
+            self._last_enemy_detected = now
+            return {
+                "action": "scan",
+                "scan_direction": self._scan_direction,
+                "scan_timer": self._scan_timer,
+                "enemy_nearby": signals.get("enemy_nearby", False),
+                "in_combat": signals.get("in_combat", False),
+                "green_ratio": signals.get("_green_ratio", 0.0),
+            }
+
+        elif s == CombatState.ENGAGED:
+            return {
+                "action": "attack",
+                "enemy_nearby": signals.get("enemy_nearby", False),
+                "in_combat": signals.get("in_combat", False),
+                "hit_confirmed": signals.get("hit_confirmed", False),
+                "dodge_chance": self.dodge_chance,
+                "kill_steal_resilient": self.kill_steal_resilient,
+                "enemy_green_ratio": signals.get("_green_ratio", 0.0),
+            }
+
+        elif s == CombatState.FLEEING:
+            return {
+                "action": "flee",
+                "player_hp_ratio": signals.get("_player_green_ratio", 0.0),
+            }
+
+        elif s == CombatState.SPECTATING:
+            return {"action": "spectate"}
+
+        elif s == CombatState.POST_MATCH:
+            return {"action": "post_match"}
+
+        else:
+            return {"action": "idle"}
+
+    def on_match_start(self):
+        """Called when a match starts."""
+        self._transition_to(CombatState.SCANNING)
+        self._kill_count = 0
+        self._consecutive_engaged_frames = 0
+        self._consecutive_no_signal_frames = 0
+        if self.engine._combat_detector:
+            self.engine._combat_detector.reset()
+
+    def on_death(self):
+        """Called when death is detected."""
+        self._transition_to(CombatState.SPECTATING)
+
+    def on_results_screen(self):
+        """Called when results screen detected."""
+        self._transition_to(CombatState.POST_MATCH)
+
+    def on_lobby(self):
+        """Called when lobby is detected."""
+        self._transition_to(CombatState.IDLE)
+
+    def get_status(self):
+        """For UI display."""
+        return {
+            "combat_state": self.state.name,
+            "kills": self._kill_count,
+            "engaged_frames": self._consecutive_engaged_frames,
+        }
+
+
+# ============================================================
+# BOT ENGINE
+# ============================================================
 
 class BotEngine:
     def __init__(self, app):
@@ -52,6 +269,12 @@ class BotEngine:
         self.cached_search_region_time = 0
         self.visibility_cache = {}
 
+        # Phase 5: Combat state machine
+        self._combat_detector = None
+        self._combat_sm = None
+        self._combat_tick_interval = 0.5
+        self._last_combat_tick = 0
+
     def start(self):
         self.stop_requested = False
         self.consecutive_return_prompt_scans = 0
@@ -59,9 +282,150 @@ class BotEngine:
         self.consecutive_spectating_checks = 0
         self.match_wait_transition_logged = False
         self.invalidate_runtime_caches(clear_region=True)
+        # Phase 5: reset combat system
+        self._combat_detector = None
+        self._combat_sm = None
+        self._last_combat_tick = 0
 
     def stop(self):
         self.stop_requested = True
+
+    def _ensure_combat_system(self):
+        """Lazily initialize combat detector and state machine."""
+        if self._combat_detector is None:
+            self._combat_detector = get_combat_detector(self.app.config)
+        if self._combat_sm is None:
+            self._combat_sm = CombatStateMachine(self)
+
+    def _combat_tick(self):
+        """
+        One tick of the combat state machine (~500ms interval).
+        This replaces the linear auto_punch() loop when smart_combat_enabled=True.
+        """
+        now = time.time()
+        if now - self._last_combat_tick < self._combat_tick_interval:
+            return
+        self._last_combat_tick = now
+        self._ensure_combat_system()
+
+        action = self._combat_sm.update()
+
+        if action["action"] == "scan":
+            self._scan_for_enemies(action)
+        elif action["action"] == "attack":
+            self._execute_engaged_combat(action)
+        elif action["action"] == "flee":
+            self._execute_fleeing(action)
+        elif action["action"] == "spectate":
+            result = self.handle_spectating_phase()
+            if result in ("lobby", "resume"):
+                if result == "lobby":
+                    self._combat_sm.on_lobby()
+        elif action["action"] == "post_match":
+            self.handle_post_match()
+            self._combat_sm.on_lobby()
+        elif action["action"] == "idle":
+            pass
+
+    def _scan_for_enemies(self, action):
+        """SCANNING state behavior: camera rotation + light movement."""
+        cfg = self.app.config
+        keys_cfg = cfg.get("keys", {})
+        move_keys = [
+            keys_cfg.get("forward", "w"),
+            keys_cfg.get("left", "a"),
+            keys_cfg.get("backward", "s"),
+            keys_cfg.get("right", "d"),
+        ]
+
+        scan_key = move_keys[1] if action["scan_direction"] > 0 else move_keys[3]
+        pydirectinput.keyDown(scan_key)
+        self.sleep(0.3)
+        pydirectinput.keyUp(scan_key)
+        self._combat_sm._scan_direction *= -1
+
+        if random.random() < 0.3:
+            pydirectinput.keyDown(move_keys[0])
+            self.sleep(random.uniform(0.2, 0.5))
+            pydirectinput.keyUp(move_keys[0])
+
+        self._check_combat_exit_conditions()
+
+    def _execute_engaged_combat(self, action):
+        """ENGAGED state behavior: M1 spam + dodge."""
+        cfg = self.app.config
+        keys_cfg = cfg.get("keys", {})
+        slot1_key = keys_cfg.get("slot_1", "1")
+
+        if not self.ensure_melee_equipped(slot1_key):
+            pydirectinput.press(slot1_key)
+            self.sleep(0.3)
+
+        for _ in range(5):
+            if not self.is_running():
+                return
+            pydirectinput.click()
+            self.last_punch_time = time.time()
+            if not self.sleep(random.uniform(0.06, 0.11)):
+                return
+
+            exit_result = self._check_combat_exit_conditions()
+            if exit_result:
+                return
+
+        self.grant_provisional_melee(18)
+
+        if random.random() < action.get("dodge_chance", 0.12):
+            backward = keys_cfg.get("backward", "s")
+            pydirectinput.keyDown(backward)
+            self.sleep(random.uniform(0.15, 0.3))
+            pydirectinput.keyUp(backward)
+
+        self.perform_dynamic_combat_movement(
+            [keys_cfg.get("forward", "w"),
+             keys_cfg.get("left", "a"),
+             keys_cfg.get("backward", "s"),
+             keys_cfg.get("right", "d")],
+            bursts=random.randint(1, 2),
+        )
+
+    def _execute_fleeing(self, action):
+        """FLEEING state behavior: evasive movement."""
+        cfg = self.app.config
+        keys_cfg = cfg.get("keys", {})
+        backward = keys_cfg.get("backward", "s")
+
+        pydirectinput.keyDown(backward)
+        self.sleep(random.uniform(0.3, 0.6))
+        pydirectinput.keyUp(backward)
+
+        strafe = random.choice([keys_cfg.get("left", "a"), keys_cfg.get("right", "d")])
+        pydirectinput.keyDown(strafe)
+        self.sleep(random.uniform(0.2, 0.4))
+        pydirectinput.keyUp(strafe)
+
+        if self._combat_detector:
+            signals = self._combat_detector.scan_all_signals()
+            if not signals.get("player_hp_low", False):
+                self.log("[COMBAT] HP recovered, returning to scan mode.")
+
+    def _check_combat_exit_conditions(self):
+        """Check for spectating/results/lobby during combat. Returns truthy if should exit."""
+        search_context = self.build_search_context()
+
+        if self.is_visible("open", search_context=search_context) or \
+           self.is_visible("continue", search_context=search_context):
+            self.log("[COMBAT] Results screen detected.")
+            self._combat_sm.on_results_screen()
+            self.handle_post_match()
+            return True
+
+        if self.detect_spectating_state(search_context=search_context):
+            self.log("[COMBAT] Spectating detected.")
+            self._combat_sm.on_death()
+            return True
+
+        return False
 
     def is_running(self):
         return self.app.is_running and not self.stop_requested
@@ -150,30 +514,41 @@ class BotEngine:
         self.cached_search_region_time = now
         return region
 
-    def is_visible(self, image_key, confidence=None, cache_ttl=0.2):
-        region = self.get_search_region()
+    def build_search_context(self, force_refresh=False):
+        return capture_search_context(self.get_search_region(force_refresh=force_refresh))
+
+    def is_visible(self, image_key, confidence=None, cache_ttl=0.2, search_context=None):
+        region = search_context.get("region") if search_context else self.get_search_region()
         cache_key = (image_key, round(confidence or -1.0, 3), region)
         now = time.time()
         cached = self.visibility_cache.get(cache_key)
         if cached and (now - cached["time"]) <= cache_ttl:
             return cached["value"]
 
-        visible = is_image_visible(image_key, self.app.config, confidence=confidence, region=region)
+        visible = is_image_visible(
+            image_key,
+            self.app.config,
+            confidence=confidence,
+            region=region,
+            search_context=search_context,
+        )
         self.visibility_cache[cache_key] = {"time": now, "value": visible}
         return visible
 
-    def safe_find_and_click(self, image_key, clicks=1, confidence=None):
+    def safe_find_and_click(self, image_key, clicks=1, confidence=None, search_context=None):
         if not self.ensure_game_focused():
             return False
         self.invalidate_runtime_caches()
+        active_context = search_context or self.build_search_context()
         clicked = find_and_click(
             image_key,
             self.app.config,
             self.is_running,
             self.log,
             clicks=clicks,
-            region=self.get_search_region(),
+            region=active_context.get("region"),
             confidence=confidence,
+            search_context=active_context,
         )
         if clicked:
             self.invalidate_runtime_caches()
@@ -383,19 +758,26 @@ class BotEngine:
             self.last_slot_warning_time = time.time()
         return False
 
-    def lobby_visible(self):
-        return self.is_visible("change") or self.is_visible("solo_mode") or self.is_visible("br_mode")
+    def lobby_visible(self, search_context=None):
+        return (
+            self.is_visible("change", search_context=search_context)
+            or self.is_visible("solo_mode", search_context=search_context)
+            or self.is_visible("br_mode", search_context=search_context)
+        )
 
-    def detect_spectating_state(self):
-        if self.is_visible("open") or self.is_visible("continue"):
+    def detect_spectating_state(self, search_context=None):
+        if self.is_visible("open", search_context=search_context) or self.is_visible(
+            "continue",
+            search_context=search_context,
+        ):
             self.consecutive_spectating_checks = 0
             return False
 
-        if not self.is_visible("return_to_lobby_alone", confidence=0.7):
+        if not self.is_visible("return_to_lobby_alone", confidence=0.7, search_context=search_context):
             self.consecutive_spectating_checks = 0
             return False
 
-        if self.is_visible("ultimate"):
+        if self.is_visible("ultimate", search_context=search_context):
             self.consecutive_spectating_checks = 0
             return False
 
@@ -423,23 +805,35 @@ class BotEngine:
                     return False
                 continue
 
-            if self.is_visible("open") or self.is_visible("continue"):
+            search_context = self.build_search_context()
+            open_visible = self.is_visible("open", search_context=search_context)
+            continue_visible = self.is_visible("continue", search_context=search_context)
+            if open_visible or continue_visible:
                 self.log("Results detected while spectating. Switching to post-match handling.")
                 return "post_match"
 
-            if self.is_visible("ultimate"):
+            if self.is_visible("ultimate", search_context=search_context):
                 self.log("Combat HUD returned. Resuming melee loop.")
                 self.app.update_status("MELEE LOOP", "#16a34a")
                 return "resume"
 
-            leave_visible = self.is_visible("return_to_lobby_alone", confidence=0.7)
+            leave_visible = self.is_visible(
+                "return_to_lobby_alone",
+                confidence=0.7,
+                search_context=search_context,
+            )
             if leave_visible:
                 if self.app.config.get("match_mode") == "quick":
                     if not quick_leave_logged:
                         self.log("Quick mode is leaving early from spectating via Return To Lobby.")
                         quick_leave_logged = True
                     if time.time() - self.last_leave_click_time > 4:
-                        if self.safe_find_and_click("return_to_lobby_alone", clicks=2, confidence=0.7):
+                        if self.safe_find_and_click(
+                            "return_to_lobby_alone",
+                            clicks=2,
+                            confidence=0.7,
+                            search_context=search_context,
+                        ):
                             self.last_leave_click_time = time.time()
                             if not self.sleep(2.2):
                                 return False
@@ -447,7 +841,7 @@ class BotEngine:
                     self.log("Return To Lobby is visible while spectating. Full mode will keep waiting for the real result screen.")
                     full_mode_wait_logged = True
 
-            if self.lobby_visible():
+            if self.lobby_visible(search_context=search_context):
                 self.clear_match_active()
                 self.log("Lobby detected after spectating. Returning to queue scan.")
                 return "lobby"
@@ -467,18 +861,29 @@ class BotEngine:
             return self.handle_spectating_phase()
         return status
 
-    def handle_combat_exit_conditions(self):
-        if self.is_visible("open") or self.is_visible("continue"):
+    def handle_combat_exit_conditions(self, search_context=None):
+        open_visible = self.is_visible("open", search_context=search_context)
+        continue_visible = self.is_visible("continue", search_context=search_context)
+        if open_visible or continue_visible:
             self.log("Results detected during melee loop.")
             return "post_match"
 
-        if self.detect_spectating_state():
+        if self.detect_spectating_state(search_context=search_context):
             return "spectating"
 
-        leave_visible = self.is_visible("return_to_lobby_alone", confidence=0.7)
+        leave_visible = self.is_visible(
+            "return_to_lobby_alone",
+            confidence=0.7,
+            search_context=search_context,
+        )
         if leave_visible and time.time() - self.last_leave_click_time > 60:
             if self.app.config.get("match_mode") == "quick":
-                if self.safe_find_and_click("return_to_lobby_alone", clicks=2, confidence=0.7):
+                if self.safe_find_and_click(
+                    "return_to_lobby_alone",
+                    clicks=2,
+                    confidence=0.7,
+                    search_context=search_context,
+                ):
                     self.log("Quick mode leave confirmed.")
                     self.last_leave_click_time = time.time()
                     return "post_match"
@@ -541,7 +946,7 @@ class BotEngine:
             if random.random() < 0.85:
                 pydirectinput.moveRel(random.randint(-165, 165), random.randint(-24, 24))
 
-            status = self.handle_combat_exit_conditions()
+            status = self.handle_combat_exit_conditions(search_context=self.build_search_context())
             if status:
                 return status
 
@@ -562,39 +967,68 @@ class BotEngine:
                     continue
 
                 self.app.update_status("SCANNING LOBBY", "#2563eb")
+                search_context = self.build_search_context()
 
-                return_prompt_visible = self.handle_lobby_return_prompt()
+                return_prompt_visible = self.handle_lobby_return_prompt(search_context=search_context)
                 if return_prompt_visible == "quick_leave":
                     self.sleep(0.4)
                     continue
 
-                if self.is_visible("ultimate"):
-                    self.log("Ultimate bar detected. Starting melee loop.")
+                if self.is_visible("ultimate", search_context=search_context):
+                    self.log("Ultimate bar detected. Starting combat.")
                     self.on_match_detected()
                     self.app.update_status("MELEE LOOP", "#16a34a")
                     self.consecutive_return_prompt_scans = 0
-                    combat_result = self.auto_punch()
-                    if combat_result == "post_match":
-                        self.handle_post_match()
+
+                    if self.app.config.get("combat_settings", {}).get("smart_combat_enabled", True):
+                        self._ensure_combat_system()
+                        self._combat_sm.on_match_start()
+                        self._last_combat_tick = 0
+                        while self.is_running():
+                            sc = self.build_search_context()
+                            if self.is_visible("open", search_context=sc) or \
+                               self.is_visible("continue", search_context=sc):
+                                self.log("Results detected from combat loop.")
+                                self.handle_post_match()
+                                break
+                            if self.detect_spectating_state(search_context=sc):
+                                self._combat_sm.on_death()
+                                result = self.handle_spectating_phase()
+                                if result == "lobby":
+                                    self._combat_sm.on_lobby()
+                                    break
+                                elif result == "resume":
+                                    self._combat_sm.on_match_start()
+                                    continue
+                            self._combat_tick()
+                            if not self.sleep(0.05):
+                                break
+                        self._combat_sm.on_lobby()
+                    else:
+                        combat_result = self.auto_punch()
+                        if combat_result == "post_match":
+                            self.handle_post_match()
                     continue
 
-                if self.is_visible("open") or self.is_visible("continue"):
+                open_visible = self.is_visible("open", search_context=search_context)
+                continue_visible = self.is_visible("continue", search_context=search_context)
+                if open_visible or continue_visible:
                     self.log("Result screen detected from main loop.")
                     self.consecutive_return_prompt_scans = 0
                     self.handle_post_match()
                     continue
 
-                if self.is_visible("solo_mode"):
-                    if self.safe_find_and_click("solo_mode"):
+                if self.is_visible("solo_mode", search_context=search_context):
+                    if self.safe_find_and_click("solo_mode", search_context=search_context):
                         self.log("Solo queue confirmed.")
                         self.consecutive_return_prompt_scans = 0
                         self.handle_match_waiting()
                         continue
-                elif self.is_visible("br_mode"):
+                elif self.is_visible("br_mode", search_context=search_context):
                     self.consecutive_return_prompt_scans = 0
-                    self.safe_find_and_click("br_mode")
+                    self.safe_find_and_click("br_mode", search_context=search_context)
                 else:
-                    if self.safe_find_and_click("change"):
+                    if self.safe_find_and_click("change", search_context=search_context):
                         self.consecutive_return_prompt_scans = 0
                     elif return_prompt_visible == "visible":
                         if self.handle_match_presence_fallback():
@@ -622,8 +1056,8 @@ class BotEngine:
     def on_match_detected(self):
         self.mark_match_active()
 
-    def handle_lobby_return_prompt(self):
-        if not self.is_visible("return_to_lobby_alone", confidence=0.7):
+    def handle_lobby_return_prompt(self, search_context=None):
+        if not self.is_visible("return_to_lobby_alone", confidence=0.7, search_context=search_context):
             self.consecutive_return_prompt_scans = 0
             return None
 
@@ -633,7 +1067,12 @@ class BotEngine:
             self.last_lobby_log_time = time.time()
 
         if self.app.config.get("match_mode") == "quick":
-            if self.safe_find_and_click("return_to_lobby_alone", clicks=2, confidence=0.7):
+            if self.safe_find_and_click(
+                "return_to_lobby_alone",
+                clicks=2,
+                confidence=0.7,
+                search_context=search_context,
+            ):
                 self.last_leave_click_time = time.time()
                 self.clear_match_active()
                 return "quick_leave"
@@ -662,7 +1101,8 @@ class BotEngine:
                 self.log("Match load is taking longer than usual. Staying in transition watch mode instead of dropping back early.")
                 self.app.update_status("MATCH TRANSITION WATCH", "#b45309")
 
-            if self.is_visible("ultimate"):
+            search_context = self.build_search_context()
+            if self.is_visible("ultimate", search_context=search_context):
                 self.log("Ultimate detected in match wait phase.")
                 self.match_wait_transition_logged = False
                 self.on_match_detected()
@@ -672,7 +1112,7 @@ class BotEngine:
                     self.handle_post_match()
                 return
 
-            if self.is_visible("return_to_lobby_alone", confidence=0.7):
+            if self.is_visible("return_to_lobby_alone", confidence=0.7, search_context=search_context):
                 self.log("Return to lobby detected in match wait phase. Switching to movement mode.")
                 self.match_wait_transition_logged = False
                 self.mark_match_active("movement fallback")
@@ -681,7 +1121,7 @@ class BotEngine:
                     self.handle_post_match()
                 return
 
-            if self.is_visible("change"):
+            if self.is_visible("change", search_context=search_context):
                 self.match_wait_transition_logged = False
                 self.clear_match_active()
                 self.log("Lobby detected again. Queue likely cancelled.")
@@ -725,7 +1165,8 @@ class BotEngine:
                 return
             pydirectinput.keyUp(key)
 
-            if self.is_visible("ultimate"):
+            search_context = self.build_search_context()
+            if self.is_visible("ultimate", search_context=search_context):
                 self.log("Ultimate detected during movement. Switching to melee loop.")
                 self.app.update_status("MELEE LOOP", "#16a34a")
                 combat_result = self.auto_punch()
@@ -733,14 +1174,22 @@ class BotEngine:
                     return "post_match"
                 return None
 
-            if self.is_visible("open") or self.is_visible("continue"):
+            if self.is_visible("open", search_context=search_context) or self.is_visible(
+                "continue",
+                search_context=search_context,
+            ):
                 self.log("Result buttons detected. Ending movement phase.")
                 return "post_match"
 
-            if self.is_visible("return_to_lobby_alone", confidence=0.7):
+            if self.is_visible("return_to_lobby_alone", confidence=0.7, search_context=search_context):
                 if time.time() - self.last_leave_click_time > 60:
                     if self.app.config.get("match_mode") == "quick":
-                        if self.safe_find_and_click("return_to_lobby_alone", clicks=2, confidence=0.7):
+                        if self.safe_find_and_click(
+                            "return_to_lobby_alone",
+                            clicks=2,
+                            confidence=0.7,
+                            search_context=search_context,
+                        ):
                             self.log("Quick mode leave confirmed.")
                             self.last_leave_click_time = time.time()
                             return "post_match"
@@ -814,7 +1263,9 @@ class BotEngine:
                     return False
                 continue
 
-            status = self.resolve_combat_loop_status(self.handle_combat_exit_conditions())
+            status = self.resolve_combat_loop_status(
+                self.handle_combat_exit_conditions(search_context=self.build_search_context())
+            )
             if status == "post_match":
                 return "post_match"
             if status == "lobby":
@@ -837,7 +1288,9 @@ class BotEngine:
                 continue
 
             for _ in range(5):
-                status = self.resolve_combat_loop_status(self.handle_combat_exit_conditions())
+                status = self.resolve_combat_loop_status(
+                    self.handle_combat_exit_conditions(search_context=self.build_search_context())
+                )
                 if status == "post_match":
                     return "post_match"
                 if status == "lobby":
@@ -898,9 +1351,14 @@ class BotEngine:
                 self.clear_match_active()
                 return
 
-            open_visible = self.is_visible("open")
-            continue_visible = self.is_visible("continue")
-            leave_visible = self.is_visible("return_to_lobby_alone", confidence=0.7)
+            search_context = self.build_search_context()
+            open_visible = self.is_visible("open", search_context=search_context)
+            continue_visible = self.is_visible("continue", search_context=search_context)
+            leave_visible = self.is_visible(
+                "return_to_lobby_alone",
+                confidence=0.7,
+                search_context=search_context,
+            )
 
             if open_visible or continue_visible or leave_visible:
                 last_progress_time = time.time()
@@ -919,12 +1377,12 @@ class BotEngine:
                 self.sleep(0.8)
 
             if open_visible:
-                if self.safe_find_and_click("open", clicks=2):
+                if self.safe_find_and_click("open", clicks=2, search_context=search_context):
                     self.sleep(1.5)
                     continue
 
             if continue_visible:
-                if self.safe_find_and_click("continue", clicks=2):
+                if self.safe_find_and_click("continue", clicks=2, search_context=search_context):
                     self.log("Continue clicked. Returning to lobby.")
                     self.sleep(2.5)
                     self.clear_match_active()
@@ -932,7 +1390,12 @@ class BotEngine:
 
             if leave_visible:
                 self.log("Attempting to return to lobby.")
-                if self.safe_find_and_click("return_to_lobby_alone", clicks=3, confidence=0.7):
+                if self.safe_find_and_click(
+                    "return_to_lobby_alone",
+                    clicks=3,
+                    confidence=0.7,
+                    search_context=search_context,
+                ):
                     self.sleep(2.5)
                     self.clear_match_active()
                     return
@@ -942,3 +1405,9 @@ class BotEngine:
     def runtime_window_ready(self):
         title = str(self.app.config.get("game_window_title", "")).strip()
         return bool(title and find_window_by_title(title))
+
+    def get_combat_status(self):
+        """Return combat state for UI display."""
+        if self._combat_sm is None:
+            return {"combat_state": "IDLE", "kills": 0, "engaged_frames": 0}
+        return self._combat_sm.get_status()

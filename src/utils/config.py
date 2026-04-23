@@ -36,48 +36,72 @@ IMAGE_SPECS = {
         "description": "Lobby button used to rotate to the Battle Royale mode.",
         "filename": "change.png",
         "required": True,
+        "hsv": None,
     },
     "br_mode": {
         "label": "Battle Royale Mode",
         "description": "The Battle Royale mode tile/button inside the queue menu.",
         "filename": "br_mode.png",
         "required": True,
+        "hsv": None,
     },
     "solo_mode": {
         "label": "Solo Mode",
         "description": "The button that confirms solo queue.",
         "filename": "solo_mode.png",
         "required": True,
+        "hsv": None,
     },
     "return_to_lobby_alone": {
         "label": "Return To Lobby",
         "description": "The leave/return button shown when the match is active or finished.",
         "filename": "leave.png",
         "required": True,
+        "hsv": {
+            "h_min": 0,
+            "h_max": 25,
+            "s_min": 120,
+            "s_max": 255,
+            "v_min": 100,
+            "v_max": 255,
+            "enabled": False,
+        },
     },
     "ultimate": {
         "label": "Ultimate Bar",
         "description": "The in-match UI element that confirms gameplay has started.",
         "filename": "ultimate.png",
         "required": True,
+        "hsv": {
+            "h_min": 100,
+            "h_max": 130,
+            "s_min": 100,
+            "s_max": 255,
+            "v_min": 100,
+            "v_max": 255,
+            "enabled": False,
+        },
     },
     "combat_ready": {
         "label": "Combat Equipped Indicator",
         "description": "An in-match HUD/icon state that appears only when melee/combat is truly equipped.",
         "filename": "combat_ready.png",
         "required": False,
+        "hsv": None,
     },
     "open": {
         "label": "Open Button",
         "description": "End-match result screen button labelled Open.",
         "filename": "open.png",
         "required": True,
+        "hsv": None,
     },
     "continue": {
         "label": "Continue Button",
         "description": "End-match screen button labelled Continue.",
         "filename": "continue.png",
         "required": True,
+        "hsv": None,
     },
 }
 
@@ -102,6 +126,60 @@ DEFAULT_KEYS = {
     "backward": "s",
     "right": "d",
 }
+DEFAULT_COMBAT_REGIONS = {
+    "green_hp_bar": {
+        "x_ratio": 0.30,
+        "y_ratio": 0.25,
+        "w_ratio": 0.40,
+        "h_ratio": 0.35,
+        "green_threshold": 0.004,
+        "enabled": True,
+    },
+    "red_dmg_numbers": {
+        "x_ratio": 0.35,
+        "y_ratio": 0.25,
+        "w_ratio": 0.30,
+        "h_ratio": 0.30,
+        "red_threshold": 0.001,
+        "enabled": True,
+    },
+    "player_hp_bar": {
+        "x_ratio": 0.40,
+        "y_ratio": 0.88,
+        "w_ratio": 0.20,
+        "h_ratio": 0.08,
+        "green_threshold": 0.005,
+        "enabled": True,
+    },
+    "incombat_timer": {
+        "x_ratio": 0.35,
+        "y_ratio": 0.01,
+        "w_ratio": 0.30,
+        "h_ratio": 0.06,
+        "white_threshold": 0.002,
+        "enabled": True,
+    },
+    "kill_icon": {
+        "x_ratio": 0.85,
+        "y_ratio": 0.01,
+        "w_ratio": 0.12,
+        "h_ratio": 0.10,
+        "white_threshold": 0.001,
+        "enabled": True,
+    },
+}
+DEFAULT_COMBAT_SETTINGS = {
+    "engage_threshold_frames": 2,
+    "disengage_threshold_frames": 5,
+    "dodge_chance": 0.12,
+    "camera_scan_interval": 0.5,
+    "cluster_scan_enabled": True,
+    "kill_steal_resilient": True,
+    "disengage_timeout_sec": 5.0,
+    "fleeing_hp_threshold": 0.25,
+    "smart_combat_enabled": True,
+    "first_person": True,
+}
 DEFAULT_CONFIG = {
     "game_window_title": "Grand Piece Online",
     "discord_webhook": "",
@@ -122,6 +200,8 @@ DEFAULT_CONFIG = {
     "outcome_area_profile": None,
     "keys": DEFAULT_KEYS,
     "detection_backend": "auto",
+    "combat_regions": DEFAULT_COMBAT_REGIONS,
+    "combat_settings": DEFAULT_COMBAT_SETTINGS,
 }
 
 
@@ -152,6 +232,22 @@ def _clamp_int(value, fallback, lower, upper):
 def _normalize_detection_backend(value):
     valid = ("auto", "opencv", "pyautogui")
     return value if value in valid else "auto"
+
+
+def _normalize_hsv(hsv):
+    if hsv is None:
+        return None
+    if not isinstance(hsv, dict):
+        return None
+    return {
+        "h_min": _clamp_int(hsv.get("h_min"), 0, 0, 179),
+        "h_max": _clamp_int(hsv.get("h_max"), 179, 0, 179),
+        "s_min": _clamp_int(hsv.get("s_min"), 0, 0, 255),
+        "s_max": _clamp_int(hsv.get("s_max"), 255, 0, 255),
+        "v_min": _clamp_int(hsv.get("v_min"), 0, 0, 255),
+        "v_max": _clamp_int(hsv.get("v_max"), 255, 0, 255),
+        "enabled": bool(hsv.get("enabled", False)),
+    }
 
 
 def _normalize_point(value):
@@ -464,6 +560,12 @@ def _normalize_config(config):
     config["images"] = _deep_merge(DEFAULT_IMAGES, config.get("images", {}))
     config["image_states"] = _deep_merge(DEFAULT_IMAGE_STATES, config.get("image_states", {}))
 
+    raw_hsv = config.get("hsv_settings", {})
+    config["hsv_settings"] = {
+        key: _normalize_hsv(raw_hsv.get(key)) or _normalize_hsv(IMAGE_SPECS.get(key, {}).get("hsv"))
+        for key in IMAGE_ORDER
+    }
+
     raw_profiles = config.get("coordinate_profiles", {})
     config["coordinate_profiles"] = {
         key: _normalize_coordinate_profile(raw_profiles.get(key), fallback_point=config.get(key))
@@ -492,6 +594,9 @@ def _normalize_config(config):
 
         config["images"][key] = to_storage_path(absolute_path)
         config["image_states"][key] = "placeholder" if _is_placeholder_asset(absolute_path) else "custom"
+
+    config["combat_regions"] = _deep_merge(DEFAULT_COMBAT_REGIONS, config.get("combat_regions", {}))
+    config["combat_settings"] = _deep_merge(DEFAULT_COMBAT_SETTINGS, config.get("combat_settings", {}))
 
     return config
 
@@ -862,3 +967,78 @@ def get_optional_setup_warnings(config):
             "Combat equip verification will fall back to slot heuristics until the Combat Equipped Indicator asset is captured."
         )
     return warnings
+
+
+# --- Combat detection region helpers (Phase 5) ---
+
+def _get_window_rect_for_config(title):
+    """Get window rect from windows utils. Lazily imported to avoid circular deps."""
+    try:
+        from src.utils.windows import get_window_rect
+        return get_window_rect(str(title)) if title else None
+    except Exception:
+        return None
+
+
+def _normalize_region_for_config(region):
+    """Convert (l,t,r,b) -> (l,t,w,h) for MSS."""
+    if not region or len(region) != 4:
+        return None
+    l, t, r, b = int(region[0]), int(region[1]), int(region[2]), int(region[3])
+    w, h = r - l, b - t
+    if w <= 0 or h <= 0:
+        return None
+    return (l, t, w, h)
+
+
+def get_combat_region(config, region_name):
+    """Get a combat detection region as absolute pixel coordinates.
+    Returns (left, top, right, bottom) or None if not configured/enabled."""
+    regions = config.get("combat_regions", {})
+    region = regions.get(region_name)
+    if not region or not region.get("enabled", False):
+        return None
+
+    title = config.get("game_window_title", "")
+    rect = _get_window_rect_for_config(title)
+    if not rect:
+        return None
+
+    l, t, r, b = int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3])
+    w, h = r - l, b - t
+
+    x = int(l + w * float(region.get("x_ratio", 0)))
+    y = int(t + h * float(region.get("y_ratio", 0)))
+    cw = int(w * float(region.get("w_ratio", 0)))
+    ch = int(h * float(region.get("h_ratio", 0)))
+
+    return (x, y, x + cw, y + ch)
+
+
+def get_combat_threshold(config, region_name, default):
+    """Get detection threshold for a region."""
+    regions = config.get("combat_regions", {})
+    region = regions.get(region_name, {})
+
+    threshold_map = {
+        "green_hp_bar": "green_threshold",
+        "red_dmg_numbers": "red_threshold",
+        "player_hp_bar": "green_threshold",
+        "incombat_timer": "white_threshold",
+        "kill_icon": "white_threshold",
+    }
+    key = threshold_map.get(region_name, f"{region_name}_threshold")
+    return region.get(key, default)
+
+
+def set_combat_region(config, region_name, x_ratio, y_ratio, w_ratio, h_ratio):
+    """Save a combat region as screen ratios."""
+    regions = config.setdefault("combat_regions", {})
+    if region_name not in regions:
+        regions[region_name] = {"enabled": True}
+
+    regions[region_name]["x_ratio"] = round(float(x_ratio), 6)
+    regions[region_name]["y_ratio"] = round(float(y_ratio), 6)
+    regions[region_name]["w_ratio"] = round(float(w_ratio), 6)
+    regions[region_name]["h_ratio"] = round(float(h_ratio), 6)
+    regions[region_name]["enabled"] = True
