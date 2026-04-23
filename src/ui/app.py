@@ -492,6 +492,83 @@ class ZedsuApp:
         self.combat_debug_label = ttk.Label(test_row, text="", style="Small.TLabel")
         self.combat_debug_label.pack(side=tk.LEFT, padx=(8, 0))
 
+        # YOLO Neural Detection (Phase 8)
+        yolo_frame = CollapsibleFrame(content, "YOLO Neural Detection", self.colors, default_open=True)
+        yolo_frame.pack(fill=tk.X, pady=(4, 0))
+        yolo_content = yolo_frame.get_content()
+
+        # Model status indicator (D-29)
+        status_row = ttk.Frame(yolo_content, style="Card.TFrame")
+        status_row.pack(fill=tk.X, pady=(4, 4))
+
+        ttk.Label(status_row, text="Model Status:", style="TLabel").pack(side=tk.LEFT)
+        self.yolo_status_label = ttk.Label(status_row, text="Checking...", style="Status.TLabel")
+        self.yolo_status_label.pack(side=tk.LEFT, padx=(8, 0))
+        self._update_yolo_status()
+
+        # Dataset collection
+        ttk.Separator(yolo_content, orient="horizontal").pack(fill=tk.X, pady=6)
+
+        ttk.Label(yolo_content,
+            text="Collect screenshots for YOLO training. "
+                 "Place game in first-person view, click 'Capture' for each class.",
+            style="Muted.TLabel").pack(anchor=tk.W, pady=(0, 4))
+
+        # Output directory
+        dir_row = ttk.Frame(yolo_content)
+        dir_row.pack(fill=tk.X, pady=2)
+        ttk.Label(dir_row, text="Output folder:", style="TLabel").pack(side=tk.LEFT)
+        self._yolo_dataset_dir = tk.StringVar(
+            value=os.path.join(os.path.dirname(__file__), "..", "..", "datasets", "yolo_train")
+        )
+        ttk.Entry(dir_row, textvariable=self._yolo_dataset_dir, width=32).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0))
+
+        # Class selector
+        class_row = ttk.Frame(yolo_content)
+        class_row.pack(fill=tk.X, pady=4)
+        ttk.Label(class_row, text="Class:", style="TLabel").pack(side=tk.LEFT)
+
+        self._yolo_capture_class = tk.StringVar(value="enemy_player")
+        _yolo_class_options = [
+            "enemy_player",    # Phase 8 critical
+            "afk_cluster",
+            "ultimate_bar",
+            "solo_button",
+            "br_mode_button",
+            "return_to_lobby",
+            "open_button",
+            "continue_button",
+            "combat_ready",
+            "change_button",
+        ]
+        class_combo = ttk.Combobox(class_row,
+            textvariable=self._yolo_capture_class,
+            values=_yolo_class_options,
+            state="readonly", width=18)
+        class_combo.pack(side=tk.LEFT, padx=(8, 0))
+
+        # Capture button
+        cap_row = ttk.Frame(yolo_content)
+        cap_row.pack(fill=tk.X, pady=4)
+        ttk.Button(cap_row, text="Capture Screenshot",
+                   command=self._capture_yolo_sample,
+                   style="Section.TButton").pack(side=tk.LEFT)
+
+        ttk.Label(cap_row,
+            text=f"Target: 300+ images for enemy_player, 200+ for UI elements",
+            style="Small.TLabel").pack(side=tk.LEFT, padx=(12, 0))
+
+        # Training guide link
+        guide_row = ttk.Frame(yolo_content, style="Card.TFrame")
+        guide_row.pack(fill=tk.X, pady=(6, 0))
+        ttk.Label(guide_row,
+            text="After collecting images: use LabelImg to annotate (YOLO format), "
+                 "train with: yolo detect train ... imgsz=640, "
+                 "export: yolo export ... imgsz=640 opset=11, "
+                 "place .onnx in assets/models/yolo_gpo.onnx",
+            style="Small.TLabel", wraplength=560, justify="left").pack(anchor=tk.W, pady=4)
+
         # HSV Color Filter
         hsv_frame = CollapsibleFrame(content, "HSV Color Filter", self.colors, default_open=False)
         hsv_frame.pack(fill=tk.X, pady=(4, 0))
@@ -1216,27 +1293,60 @@ class ZedsuApp:
             self.combat_debug_label.config(text=" | ".join(lines))
         except Exception as exc:
             self.combat_debug_label.config(text=f"Error: {exc}")
-        if self.is_running:
+
+    def _update_yolo_status(self):
+        """Update YOLO model status indicator (D-29: UI warning when missing)."""
+        try:
+            from src.core.vision import _get_yolo_detector
+            detector = _get_yolo_detector()
+            if detector.is_available():
+                self.yolo_status_label.config(text="Model loaded", foreground="#22c55e")
+            else:
+                error = detector.get_load_error() or "not found"
+                self.yolo_status_label.config(
+                    text=f"Model not found — far-range detection disabled",
+                    foreground="#ef4444"
+                )
+        except Exception as exc:
+            self.yolo_status_label.config(text=f"Error: {exc}", foreground="#f97316")
+
+    def _capture_yolo_sample(self):
+        """Capture screenshot for YOLO training dataset."""
+        import time as _time
+        try:
+            from src.core.vision import _mss_capture_haystack, _normalize_region, get_window_rect
+        except Exception as exc:
+            messagebox.showwarning("Import Error", f"Could not import vision module: {exc}")
             return
-        window_rect = self._selected_window_rect()
 
-        def launch_tool(screenshot):
-            CoordinatePicker(
-                self.root, screenshot,
-                on_complete=lambda result: self._complete_coord_pick(key, result, window_rect),
-                on_cancel=self.restore_main_window,
-            )
-        self._begin_screen_tool(launch_tool)
+        window_title = str(self.config.get("game_window_title", ""))
+        region_rect = get_window_rect(window_title) if window_title else None
+        if not region_rect:
+            messagebox.showwarning("Window Not Found", "Game window not detected.")
+            return
 
-    def _complete_coord_pick(self, key, result, window_rect=None):
-        set_coordinate_binding(self.config, key, result,
-                              window_rect=window_rect, window_title=self._selected_window_title())
-        save_config(self.config)
-        self.config = load_config()
-        self.restore_main_window()
-        self.refresh_coordinate_labels()
-        label = COORDINATE_SPECS.get(key, {}).get("label", key)
-        self.log(f"Coord saved: {label}")
+        normalized = _normalize_region(region_rect)
+        haystack_rgb, _ = _mss_capture_haystack(normalized)
+        if haystack_rgb is None:
+            messagebox.showwarning("Capture Failed", "Could not capture screen.")
+            return
+
+        # Save image as PNG
+        output_dir = self._yolo_dataset_dir.get()
+        os.makedirs(output_dir, exist_ok=True)
+
+        import cv2
+        class_name = self._yolo_capture_class.get()
+        filename = f"{class_name}_{int(_time.time() * 1000)}.png"
+        filepath = os.path.join(output_dir, filename)
+        img_bgr = haystack_rgb[:, :, ::-1]  # RGB -> BGR
+        cv2.imwrite(filepath, img_bgr)
+
+        messagebox.showinfo("Captured",
+            f"Saved: {filename}\n\n"
+            f"Class: {class_name}\n\n"
+            f"Next: open LabelImg and annotate this image.\n"
+            f"Use classes.txt with: enemy_player, afk_cluster, ultimate_bar, etc.")
 
     def _begin_screen_tool(self, launch_tool, delay_ms=1300):
         self.root.iconify()

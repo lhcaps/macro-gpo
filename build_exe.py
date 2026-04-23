@@ -108,32 +108,49 @@ def main():
             print("Close any running Zedsu.exe process and run build_exe.py again.")
             sys.exit(1)
 
+    # Phase 8: Build PyInstaller arguments
+    pyinstaller_args = [
+        "--noconfirm",
+        "--clean",
+        "--onefile",
+        "--windowed",
+        "--name",
+        "Zedsu",
+        "--add-data",
+        f"{project_root / 'src'}{';' if sys.platform == 'win32' else ':'}{project_root / 'src'}",
+        "--hidden-import",
+        "PIL._tkinter_finder",
+        "--hidden-import",
+        "cv2",
+        "--hidden-import",
+        "cv2.cv2",
+        "--hidden-import",
+        "mss",
+        "--hidden-import",
+        "numpy",
+        "--hidden-import",
+        "numpy._core",
+        "--hidden-import",
+        "numpy._core._multiarray_umath",
+    ]
+
+    # Phase 8: Bundle ONNX YOLO model (D-24 → D-29)
+    model_source = project_root / "assets" / "models" / "yolo_gpo.onnx"
+    if model_source.exists():
+        pyinstaller_args.extend([
+            "--add-data",
+            f"{model_source}{';' if sys.platform == 'win32' else ':'}assets{chr(92) if sys.platform == 'win32' else '/'}models",
+        ])
+    else:
+        print("[build] WARNING: assets/models/yolo_gpo.onnx not found.")
+        print("[build] YOLO detection will be disabled until model is trained and placed.")
+        print("[build] To enable: collect screenshots, annotate with LabelImg,")
+        print("[build] train YOLO11n, export as ONNX (opset=11), place at assets/models/yolo_gpo.onnx")
+
+    pyinstaller_args.append(str(project_root / "main.py"))
+
     try:
-        PyInstaller.__main__.run(
-            [
-                "--noconfirm",
-                "--clean",
-                "--onefile",
-                "--windowed",
-                "--name",
-                "Zedsu",
-                "--hidden-import",
-                "PIL._tkinter_finder",
-                "--hidden-import",
-                "cv2",
-                "--hidden-import",
-                "cv2.cv2",
-                "--hidden-import",
-                "mss",
-                "--hidden-import",
-                "numpy",
-                "--hidden-import",
-                "numpy._core",
-                "--hidden-import",
-                "numpy._core._multiarray_umath",
-                str(project_root / "main.py"),
-            ]
-        )
+        PyInstaller.__main__.run(pyinstaller_args)
     finally:
         if runtime_backed_up:
             dist_dir.mkdir(parents=True, exist_ok=True)

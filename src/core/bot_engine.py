@@ -13,6 +13,9 @@ from src.core.vision import (
     get_combat_detector,
     is_image_visible,
     locate_image,
+    _mss_capture_haystack,
+    _normalize_region,
+    _get_yolo_detector,
 )
 from src.utils.config import (
     CAPTURES_DIR,
@@ -77,6 +80,7 @@ class CombatStateMachine:
         self._scan_direction = 1
         self._scan_timer = 0
         self._last_kill_detected = False
+        self._last_yolo_scan_time = 0  # Phase 8: throttle YOLO scans
 
         cfg = engine.app.config.get("combat_settings", {})
         self.disengage_timeout_sec = cfg.get("disengage_timeout_sec", 5.0)
@@ -161,6 +165,12 @@ class CombatStateMachine:
         if no_signal_duration > self.disengage_timeout_sec and s == CombatState.ENGAGED:
             return CombatState.SCANNING
 
+        # Phase 8: If in SCANNING and no pixel signals, try YOLO (D-26)
+        if s == CombatState.SCANNING and not enemy_nearby and not in_combat:
+            yolo_result = self._yolo_scan_for_enemy()
+            if yolo_result:
+                return CombatState.APPROACH  # D-15: YOLO sees enemy → APPROACH
+
         if s not in (CombatState.IDLE, CombatState.SPECTATING, CombatState.POST_MATCH):
             if not enemy_nearby and not in_combat:
                 return CombatState.SCANNING
@@ -236,6 +246,84 @@ class CombatStateMachine:
             "kills": self._kill_count,
             "engaged_frames": self._consecutive_engaged_frames,
         }
+
+    # Phase 8: YOLO Enemy Detection (D-26, D-27)
+    def _yolo_scan_for_enemy(self):
+        """
+        YOLO-based enemy detection for SCANNING state.
+        Called when green HP bar signal is absent.
+        Throttled to 1-2s intervals (D-14).
+        Returns dict with enemy info or None.
+        """
+        now = time.time()
+        # Throttle: only scan every 1.5 seconds (D-14)
+        if now - self._last_yolo_scan_time < 1.5:
+            return None
+        self._last_yolo_scan_time = now
+
+        try:
+            import numpy as np
+        except ImportError:
+            return None
+
+        # Get YOLO detector
+        yolo_det = _get_yolo_detector()
+        if not yolo_det.is_available():
+            return None
+
+        # Capture full window frame
+        region = self.engine.get_search_region()
+        if not region:
+            return None
+
+        normalized = _normalize_region(region)
+        haystack_rgb, offset = _mss_capture_haystack(normalized)
+        if haystack_rgb is None:
+            return None
+
+        haystack_bgr = haystack_rgb[:, :, ::-1]  # RGB -> BGR
+
+        # Detect enemy_player class (class_id=8)
+        detections = yolo_det.detect(haystack_bgr, class_ids=[8])
+        if not detections:
+            return None
+
+        # D-27: Pick nearest to screen center
+        best = self._select_nearest_to_center(detections, haystack_rgb.shape)
+        _, conf, (x, y, w, h) = best
+
+        return {
+            "enemy_detected": True,
+            "class_id": 8,
+            "confidence": conf,
+            "box": (x, y, w, h),
+            "center_distance": self._center_distance((x, y, w, h), haystack_rgb.shape),
+        }
+
+    def _select_nearest_to_center(self, detections, image_shape):
+        """Select detection closest to screen center (D-27)."""
+        h, w = image_shape[:2]
+        center_x, center_y = w / 2, h / 2
+        best = None
+        best_dist = float("inf")
+        for det in detections:
+            _, _, (x, y, bw, bh) = det
+            cx = x + bw / 2
+            cy = y + bh / 2
+            dist = ((cx - center_x) ** 2 + (cy - center_y) ** 2) ** 0.5
+            if dist < best_dist:
+                best_dist = dist
+                best = det
+        return best
+
+    def _center_distance(self, box, image_shape):
+        """Compute distance from detection center to screen center."""
+        h, w = image_shape[:2]
+        center_x, center_y = w / 2, h / 2
+        x, y, bw, bh = box
+        cx = x + bw / 2
+        cy = y + bh / 2
+        return ((cx - center_x) ** 2 + (cy - center_y) ** 2) ** 0.5
 
 
 # ============================================================

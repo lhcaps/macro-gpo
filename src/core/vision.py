@@ -1,10 +1,15 @@
 import os
 import time
 import tkinter as tk
+import logging as _logging
 from collections import namedtuple
 
 import pyautogui
 from PIL import Image, ImageEnhance, ImageTk
+
+_Logger = _logging.getLogger("zedsu.vision")
+def _log_debug(msg):
+    _Logger.debug(msg)
 
 try:
     import mss
@@ -24,6 +29,39 @@ _Box = namedtuple("Box", ["left", "top", "width", "height"])
 from src.core.controller import human_click
 from src.utils.config import get_asset_capture_context, resolve_path
 from src.utils.windows import get_window_rect
+
+# Phase 8: YOLO Neural Detection
+try:
+    from src.core.vision_yolo import YOLODetector
+    _YOLO_AVAILABLE = True
+except ImportError:
+    YOLODetector = None
+    _YOLO_AVAILABLE = False
+
+
+_yolo_detector = None  # Lazy singleton for assets
+
+def _get_yolo_detector():
+    """Get or create YOLO detector singleton for UI asset detection."""
+    global _yolo_detector
+    if _yolo_detector is None:
+        _yolo_detector = YOLODetector()
+    return _yolo_detector
+
+
+# YOLO class mapping: asset_name -> YOLO class IDs (D-26: UI assets only, enemy_player excluded)
+# NOTE: enemy_player and afk_cluster are NOT in this map.
+# They are handled by CombatStateMachine via get_yolo_enemy_detector(). See Task 7.
+_YOLO_CLASS_MAP = {
+    "ultimate": [0],
+    "solo_mode": [1],
+    "br_mode": [2],
+    "return_to_lobby_alone": [3],
+    "open": [4],
+    "continue": [5],
+    "combat_ready": [6],
+    "change": [7],
+}
 
 
 _IMAGE_CACHE = {}
@@ -514,6 +552,35 @@ def locate_image(img_name, config, confidence=None, region=None, search_context=
     path = resolve_path(config.get("images", {}).get(img_name))
     if not path or not os.path.exists(path):
         return None
+
+    # Layer 0: YOLO Neural Detection (Phase 8) — fastest, for UI asset classes only
+    # enemy_player is NOT in this map — handled by CombatStateMachine directly
+    if _YOLO_AVAILABLE and config.get("detection_backend", "auto") in ("auto", "opencv"):
+        yolo_class_ids = _YOLO_CLASS_MAP.get(img_name)
+        if yolo_class_ids is not None:
+            # Get BGR haystack from MSS capture
+            if _MSS_AVAILABLE:
+                window_title = config.get("game_window_title", "")
+                region_rect = get_window_rect(str(window_title)) if window_title else None
+                if region_rect:
+                    normalized = _normalize_region(region_rect)
+                    haystack_rgb, offset = _mss_capture_haystack(normalized)
+                    if haystack_rgb is not None:
+                        haystack_bgr = haystack_rgb[:, :, ::-1]  # RGB -> BGR
+                        yolo_det = _get_yolo_detector()
+                        detections = yolo_det.detect(haystack_bgr, class_ids=yolo_class_ids)
+                        if detections:
+                            best = max(detections, key=lambda d: d[1])
+                            _, conf, (x, y, w, h) = best
+                            class FakeBox:
+                                pass
+                            box = FakeBox()
+                            box.left = x
+                            box.top = y
+                            box.width = w
+                            box.height = h
+                            _log_debug(f"[YOLO] {img_name} conf={conf:.2f}")
+                            return box
 
     # Layer 1: HSV pre-filter (fast color check before expensive template match)
     hsv_result = _hsv_prefilter(img_name, config, region, search_context)
