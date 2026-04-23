@@ -126,8 +126,6 @@ def main():
                 "--hidden-import",
                 "mss",
                 "--hidden-import",
-                "mss.mss",
-                "--hidden-import",
                 "numpy",
                 "--hidden-import",
                 "numpy._core",
