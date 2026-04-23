@@ -1,16 +1,41 @@
 import os
+import time
 import tkinter as tk
 
 import pyautogui
 from PIL import Image, ImageEnhance, ImageTk
 
+try:
+    import mss
+    import numpy as np
+    import cv2
+    _MSS_AVAILABLE = True
+    _CV2_AVAILABLE = True
+except ImportError:
+    _MSS_AVAILABLE = False
+    _CV2_AVAILABLE = False
+    np = None
+    cv2 = None
+
 from src.core.controller import human_click
 from src.utils.config import get_asset_capture_context, resolve_path
+from src.utils.windows import get_window_rect
 
 
 _IMAGE_CACHE = {}
 _SCALED_IMAGE_CACHE = {}
 _SCALE_HINT_CACHE = {}
+_LAST_MATCH_REGION_CACHE = {}
+_LAST_MATCH_MAX_AGE = 180.0
+_SEARCH_HINT_RATIOS = {
+    "ultimate": ((0.18, 0.64, 0.84, 1.0),),
+    "open": ((0.16, 0.35, 0.86, 0.98),),
+    "continue": ((0.16, 0.35, 0.86, 0.98),),
+    "return_to_lobby_alone": ((0.08, 0.2, 0.92, 0.96),),
+    "solo_mode": ((0.12, 0.08, 0.9, 0.9),),
+    "br_mode": ((0.12, 0.08, 0.9, 0.9),),
+    "change": ((0.02, 0.02, 0.9, 0.72),),
+}
 
 
 def _normalize_region(region):
@@ -83,6 +108,195 @@ def _capture_haystack(normalized_region):
         return None, (0, 0)
 
 
+def _mss_capture_haystack(normalized_region):
+    """Fast screen capture using MSS. Returns (RGB numpy array, offset) tuple."""
+    if not _MSS_AVAILABLE or np is None:
+        return None, (0, 0)
+    try:
+        with mss.mss() as sct:
+            if normalized_region:
+                left, top, width, height = [int(v) for v in normalized_region]
+            else:
+                left, top = 0, 0
+                width, height = sct.monitors[1]["width"], sct.monitors[1]["height"]
+
+            monitor = {"left": left, "top": top, "width": width, "height": height}
+            screenshot = sct.grab(monitor)
+            img = np.array(screenshot)
+            if img.shape[2] == 4:
+                img = img[:, :, :3][:, :, ::-1]  # BGRA -> RGB
+            return img, (left, top)
+    except Exception:
+        return None, (0, 0)
+
+
+# Global window scale reference (used by Phase 7 window resize detection)
+_WINDOW_CAPTURE_WIDTH = None
+_WINDOW_CAPTURE_HEIGHT = None
+_WINDOW_SCALE_FACTOR = 1.0
+
+
+def _region_from_normalized(normalized_region, image=None, offset=(0, 0)):
+    if normalized_region:
+        left, top, width, height = normalized_region
+        return (int(left), int(top), int(left + width), int(top + height))
+    if image is None:
+        return None
+    offset_x, offset_y = offset
+    return (int(offset_x), int(offset_y), int(offset_x + image.width), int(offset_y + image.height))
+
+
+def _clamp_region(region, bounds):
+    if not region or not bounds:
+        return None
+
+    left = max(int(bounds[0]), int(region[0]))
+    top = max(int(bounds[1]), int(region[1]))
+    right = min(int(bounds[2]), int(region[2]))
+    bottom = min(int(bounds[3]), int(region[3]))
+    if right <= left or bottom <= top:
+        return None
+    return (left, top, right, bottom)
+
+
+def _expand_region(region, bounds, padding_x, padding_y):
+    if not region:
+        return None
+    expanded = (
+        int(region[0] - padding_x),
+        int(region[1] - padding_y),
+        int(region[2] + padding_x),
+        int(region[3] + padding_y),
+    )
+    return _clamp_region(expanded, bounds)
+
+
+def _ratio_area(region, bounds):
+    if not region or not bounds:
+        return None
+
+    width = max(1, int(bounds[2] - bounds[0]))
+    height = max(1, int(bounds[3] - bounds[1]))
+    left = (int(region[0]) - int(bounds[0])) / width
+    top = (int(region[1]) - int(bounds[1])) / height
+    right = (int(region[2]) - int(bounds[0])) / width
+    bottom = (int(region[3]) - int(bounds[1])) / height
+
+    left = max(0.0, min(1.0, left))
+    top = max(0.0, min(1.0, top))
+    right = max(0.0, min(1.0, right))
+    bottom = max(0.0, min(1.0, bottom))
+    if right <= left or bottom <= top:
+        return None
+    return (left, top, right, bottom)
+
+
+def _region_from_ratio_area(ratio_area, bounds):
+    if not ratio_area or not bounds:
+        return None
+
+    width = max(1, int(bounds[2] - bounds[0]))
+    height = max(1, int(bounds[3] - bounds[1]))
+    left = int(bounds[0] + (ratio_area[0] * width))
+    top = int(bounds[1] + (ratio_area[1] * height))
+    right = int(bounds[0] + (ratio_area[2] * width))
+    bottom = int(bounds[1] + (ratio_area[3] * height))
+    return _clamp_region((left, top, right, bottom), bounds)
+
+
+def _crop_search_context(search_context, region):
+    image = search_context.get("image")
+    bounds = search_context.get("region")
+    if image is None or not bounds:
+        return None, (0, 0)
+
+    cropped_region = _clamp_region(region, bounds)
+    if not cropped_region:
+        return None, (0, 0)
+
+    if cropped_region == bounds:
+        return image, (bounds[0], bounds[1])
+
+    local_left = int(cropped_region[0] - bounds[0])
+    local_top = int(cropped_region[1] - bounds[1])
+    local_right = int(cropped_region[2] - bounds[0])
+    local_bottom = int(cropped_region[3] - bounds[1])
+    return image.crop((local_left, local_top, local_right, local_bottom)), (cropped_region[0], cropped_region[1])
+
+
+def _box_to_region(box):
+    return (int(box.left), int(box.top), int(box.left + box.width), int(box.top + box.height))
+
+
+def _register_last_match(img_name, box, search_context):
+    bounds = search_context.get("region")
+    match_region = _box_to_region(box)
+    ratio = _ratio_area(match_region, bounds)
+    if ratio:
+        _LAST_MATCH_REGION_CACHE[img_name] = {"ratio_area": ratio, "updated_at": time.time()}
+
+
+def _iter_candidate_regions(img_name, search_context):
+    bounds = search_context.get("region")
+    if not bounds:
+        return []
+
+    candidates = []
+    cached = _LAST_MATCH_REGION_CACHE.get(img_name)
+    if cached and (time.time() - cached.get("updated_at", 0)) <= _LAST_MATCH_MAX_AGE:
+        cached_region = _region_from_ratio_area(cached.get("ratio_area"), bounds)
+        if cached_region:
+            cached_width = max(1, cached_region[2] - cached_region[0])
+            cached_height = max(1, cached_region[3] - cached_region[1])
+            candidates.append(
+                _expand_region(
+                    cached_region,
+                    bounds,
+                    max(42, int(cached_width * 1.8)),
+                    max(28, int(cached_height * 1.8)),
+                )
+            )
+
+    for ratio_region in _SEARCH_HINT_RATIOS.get(img_name, ()):
+        candidates.append(_region_from_ratio_area(ratio_region, bounds))
+
+    candidates.append(bounds)
+
+    unique = []
+    seen = set()
+    for candidate in candidates:
+        if not candidate:
+            continue
+        key = tuple(int(value) for value in candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(candidate)
+    return unique
+
+
+def capture_search_context(region=None):
+    normalized_region = _normalize_region(region)
+    image, offset = _capture_haystack(normalized_region)
+    current_size = _region_size(region)
+    if image is None:
+        return {
+            "image": None,
+            "offset": offset,
+            "normalized_region": normalized_region,
+            "region": None,
+            "current_size": current_size,
+        }
+
+    return {
+        "image": image,
+        "offset": offset,
+        "normalized_region": normalized_region,
+        "region": _region_from_normalized(normalized_region, image=image, offset=offset),
+        "current_size": current_size or [image.width, image.height],
+    }
+
+
 def _build_scale_candidates(img_name, config, current_size):
     candidates = []
     hinted_scale = _SCALE_HINT_CACHE.get(img_name)
@@ -111,6 +325,101 @@ def _build_scale_candidates(img_name, config, current_size):
     return unique
 
 
+def _cv2_locate_image(img_name, config, confidence=None, region=None, search_context=None):
+    """Fast image location using cv2.matchTemplate + MSS capture."""
+    if not _MSS_AVAILABLE:
+        return None
+
+    path = resolve_path(config.get("images", {}).get(img_name))
+    if not path or not os.path.exists(path):
+        return None
+
+    conf = float(confidence if confidence is not None else config.get("confidence", 0.8))
+    window_title = config.get("game_window_title", "")
+
+    # Capture screen using MSS
+    region_rect = get_window_rect(str(window_title)) if window_title else None
+    if region_rect:
+        normalized = _normalize_region(region_rect)
+    elif region:
+        normalized = _normalize_region(region) if isinstance(region, (tuple, list)) else None
+    else:
+        normalized = None
+
+    haystack_rgb, offset = _mss_capture_haystack(normalized)
+    if haystack_rgb is None:
+        return None
+
+    # Update window capture dimensions
+    global _WINDOW_CAPTURE_WIDTH, _WINDOW_CAPTURE_HEIGHT
+    if normalized and len(normalized) == 4:
+        _WINDOW_CAPTURE_WIDTH = normalized[2]
+        _WINDOW_CAPTURE_HEIGHT = normalized[3]
+
+    # Convert RGB -> BGR for cv2
+    haystack_bgr = haystack_rgb[:, :, ::-1]
+    haystack_gray = cv2.cvtColor(haystack_bgr, cv2.COLOR_BGR2GRAY)
+
+    current_size = [haystack_rgb.shape[1], haystack_rgb.shape[0]]
+    scales = _build_scale_candidates(img_name, config, current_size)
+
+    attempts = [
+        {"grayscale": True, "conf": conf},
+        {"grayscale": False, "conf": max(0.58, conf - 0.04)},
+        {"grayscale": False, "conf": max(0.5, conf - 0.12)},
+    ]
+
+    # Load needle as numpy array
+    needle_img = _load_template(path)
+    needle_rgb = np.array(needle_img)
+
+    for scale in scales[:6]:
+        # Scale needle
+        scaled_w = max(1, int(round(needle_rgb.shape[1] * scale)))
+        scaled_h = max(1, int(round(needle_rgb.shape[0] * scale)))
+        needle_scaled = cv2.resize(needle_rgb, (scaled_w, scaled_h), interpolation=cv2.INTER_LINEAR)
+
+        if needle_scaled.shape[0] > haystack_gray.shape[0] or needle_scaled.shape[1] > haystack_gray.shape[1]:
+            continue
+
+        for attempt in attempts:
+            try:
+                if attempt["grayscale"]:
+                    needle_attempt = cv2.cvtColor(needle_scaled, cv2.COLOR_RGB2GRAY)
+                else:
+                    needle_attempt = cv2.cvtColor(needle_scaled, cv2.COLOR_RGB2GRAY)  # cv2.matchTemplate needs grayscale
+
+                result = cv2.matchTemplate(
+                    haystack_gray, needle_attempt, cv2.TM_CCOEFF_NORMED
+                )
+                _, max_val, _, max_loc = cv2.minMaxLoc(result)
+
+                if max_val >= attempt["conf"]:
+                    _SCALE_HINT_CACHE[img_name] = scale
+
+                    class FakeBox:
+                        pass
+                    box = FakeBox()
+                    box.left = max_loc[0] + offset[0]
+                    box.top = max_loc[1] + offset[1]
+                    box.width = scaled_w
+                    box.height = scaled_h
+
+                    # Build active_context for _register_last_match
+                    active_context = {
+                        "region": (offset[0], offset[1],
+                                   offset[0] + haystack_rgb.shape[1],
+                                   offset[1] + haystack_rgb.shape[0]),
+                        "image": haystack_rgb,
+                    }
+                    _register_last_match(img_name, box, active_context)
+                    return box
+            except Exception:
+                continue
+
+    return None
+
+
 def _offset_box(result, offset_x, offset_y):
     if offset_x == 0 and offset_y == 0:
         return result
@@ -122,57 +431,92 @@ def _offset_box(result, offset_x, offset_y):
     )
 
 
-def locate_image(img_name, config, confidence=None, region=None):
+def locate_image(img_name, config, confidence=None, region=None, search_context=None):
     path = resolve_path(config.get("images", {}).get(img_name))
     if not path or not os.path.exists(path):
         return None
 
+    backend = config.get("detection_backend", "auto")
+    if backend == "auto":
+        backend = "opencv" if _MSS_AVAILABLE else "pyautogui"
+
+    if backend == "opencv" and _MSS_AVAILABLE:
+        return _cv2_locate_image(img_name, config, confidence, region, search_context)
+
+    # pyautogui fallback
     conf = float(confidence if confidence is not None else config.get("confidence", 0.8))
-    normalized_region = _normalize_region(region)
-    haystack, offset = _capture_haystack(normalized_region)
-    if haystack is None:
+    active_context = search_context or capture_search_context(region)
+    current_size = active_context.get("current_size") or _region_size(region)
+    if active_context.get("image") is None:
         return None
 
-    haystack_width, haystack_height = haystack.size
-    current_size = _region_size(region)
     attempts = (
         {"grayscale": True, "confidence": conf},
         {"grayscale": False, "confidence": max(0.58, conf - 0.04)},
         {"grayscale": False, "confidence": max(0.5, conf - 0.12)},
     )
 
-    for scale in _build_scale_candidates(img_name, config, current_size):
-        needle = _scaled_template(path, scale)
-        if needle.width > haystack_width or needle.height > haystack_height:
+    for candidate_region in _iter_candidate_regions(img_name, active_context):
+        haystack, offset = _crop_search_context(active_context, candidate_region)
+        if haystack is None:
             continue
 
-        for attempt in attempts:
-            try:
-                result = pyautogui.locate(
-                    needle,
-                    haystack,
-                    grayscale=attempt["grayscale"],
-                    confidence=attempt["confidence"],
-                )
-            except Exception:
-                result = None
+        haystack_width, haystack_height = haystack.size
+        for scale in _build_scale_candidates(img_name, config, current_size):
+            needle = _scaled_template(path, scale)
+            if needle.width > haystack_width or needle.height > haystack_height:
+                continue
 
-            if result:
-                _SCALE_HINT_CACHE[img_name] = scale
-                return _offset_box(result, offset[0], offset[1])
+            for attempt in attempts:
+                try:
+                    result = pyautogui.locate(
+                        needle,
+                        haystack,
+                        grayscale=attempt["grayscale"],
+                        confidence=attempt["confidence"],
+                    )
+                except Exception:
+                    result = None
+
+                if result:
+                    _SCALE_HINT_CACHE[img_name] = scale
+                    absolute_result = _offset_box(result, offset[0], offset[1])
+                    _register_last_match(img_name, absolute_result, active_context)
+                    return absolute_result
 
     return None
 
 
-def is_image_visible(img_name, config, confidence=None, region=None):
-    return locate_image(img_name, config, confidence=confidence, region=region) is not None
+def is_image_visible(img_name, config, confidence=None, region=None, search_context=None):
+    return locate_image(
+        img_name,
+        config,
+        confidence=confidence,
+        region=region,
+        search_context=search_context,
+    ) is not None
 
 
-def find_and_click(img_name, config, is_running_check, log_func, clicks=1, region=None, confidence=None):
+def find_and_click(
+    img_name,
+    config,
+    is_running_check,
+    log_func,
+    clicks=1,
+    region=None,
+    confidence=None,
+    search_context=None,
+):
     if not is_running_check():
         return False
 
-    pos = locate_image(img_name, config, confidence=confidence, region=region)
+    pos = locate_image(
+        img_name,
+        config,
+        confidence=confidence,
+        region=region,
+        search_context=search_context,
+    )
     if not pos:
         return False
 

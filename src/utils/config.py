@@ -121,6 +121,7 @@ DEFAULT_CONFIG = {
     "outcome_area": None,
     "outcome_area_profile": None,
     "keys": DEFAULT_KEYS,
+    "detection_backend": "auto",
 }
 
 
@@ -146,6 +147,11 @@ def _clamp_int(value, fallback, lower, upper):
         return max(lower, min(upper, int(value)))
     except (TypeError, ValueError):
         return fallback
+
+
+def _normalize_detection_backend(value):
+    valid = ("auto", "opencv", "pyautogui")
+    return value if value in valid else "auto"
 
 
 def _normalize_point(value):
@@ -446,6 +452,7 @@ def _normalize_config(config):
     config["scan_interval"] = _clamp_float(config.get("scan_interval"), 1.5, 0.2, 10.0)
     config["movement_duration"] = _clamp_int(config.get("movement_duration"), 300, 30, 3600)
     config["match_mode"] = "quick" if config.get("match_mode") == "quick" else "full"
+    config["detection_backend"] = _normalize_detection_backend(config.get("detection_backend"))
     config["window_focus_required"] = bool(config.get("window_focus_required", True))
     config["auto_focus_window"] = bool(config.get("auto_focus_window", True))
     config["pos_1"] = _normalize_point(config.get("pos_1"))
