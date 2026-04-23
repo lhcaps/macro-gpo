@@ -64,9 +64,8 @@ Zedsu v1 shipped a guided setup flow, working automation loop, and radical UI si
 **Goal:** Integrate YOLO11n ONNX for far-range enemy detection (critical for smart combat). Kickoff parallel with Phase 5 — not blocking.
 **Depends on**: None (standalone, can start anytime)
 **Requirements**: [OPER-36, OPER-37]
-**Status**: Active — 9 tasks planned (discussed + planning complete)
+**Status**: ✅ Complete — 2026-04-24
 **Plans**: 1 plan
-**Note**: Previously depended on Phase 7. Unlinked — far-range detection is critical for combat effectiveness. User captures screenshots and trains model independently via built-in UI.
 **Key decisions (D-24→D-29):**
 - imgsz=640, opset=11 (far-range detail preservation)
 - Dual-layer: UI assets in locate_image(), enemy_player in CombatStateMachine
@@ -74,7 +73,7 @@ Zedsu v1 shipped a guided setup flow, working automation loop, and radical UI si
 - Nearest-to-center target selection
 - UI warning when model missing
 - cv2.dnn ONNX runtime (no new dependency)
-- [x] 08-01: YOLO ONNX integration + dual-layer pipeline + dataset collection UI (planned)
+- [x] 08-01: YOLO ONNX integration + dual-layer pipeline + dataset collection UI (commit 93592ec)
 
 ## Progress
 
@@ -90,7 +89,7 @@ Phases: 3 → 4 → 5 → 6 → 7 → 8. Phase 8 (YOLO) unlinked — kickoff any
 | 5. Smart Combat AI | 1/1 | Complete | 2026-04-24 |
 | 6. System Tray Operation | 1/1 | Pending | — |
 | 7. Window Binding Hardening | 1/1 | Pending | — |
-| 8. YOLO Detection | 1/1 | Pending (kickoff ready) | — |
+| 8. YOLO Detection | 1/1 | Complete | 2026-04-24 |
 
 ## Research Artifacts
 

@@ -5,16 +5,16 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Fast, intelligent, real-combat macro with system tray operation.
-**Current focus:** Phase 8 - YOLO Neural Detection (discuss complete, executing)
+**Current focus:** Phase 6 - System Tray Operation (pending plan)
 
 ## Current Position
 
 Milestone: v2 — Detection & Combat AI
 Phase: 8 of 8 (YOLO Neural Detection)
-Plan: 08-01-PLAN.md — 9 tasks, discussing + planning complete
-Status: Phase 8 executing. Decisions D-24→D-29 captured (imgsz=640, dual-layer, per-class conf, nearest target, UI warning).
+Plan: 08-01-PLAN.md — 9 tasks
+Status: Phase 8 complete (commit 93592ec). Decisions D-24→D-29 captured. Next: Phase 6 (System Tray Operation).
 
-Progress: [....... ] Phase 5 complete
+Progress: [....... ] Phase 5 + Phase 8 complete
 
 ## Accumulated Context
 
