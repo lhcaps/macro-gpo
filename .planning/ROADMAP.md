@@ -77,7 +77,7 @@ Plans:
 **Goal:** Build the core operator-facing controls: smart region selector, combat position picker, and structured Discord event system. This is NOT a Bridger clone — it is Zedsu's own product: a recoverable, screen-based GPO BR automation runtime that always keeps the operator informed about loop state, why it is stuck, what it tried, and what needs fixing.
 **Depends on:** Phase 11.5
 **Requirements**: OPER-36, OPER-37 (existing), new Phase 12 requirements TBD
-**Status**: 12.0 Complete; 12.1 Complete; 12.2 Complete; 12.3 Complete (hotfix applied); 12.4 Pending; 12.5 Pending
+**Status**: 12.0 Complete; 12.1 Complete; 12.2 Complete; 12.3 Complete (hotfix applied); 12.4 In Progress (blockers fixed 2026-04-25); 12.5 Pending
 
 ### Phase 12.0: Contract Cleanup & Config Hygiene
 **Goal:** Fix 4 verified P0 issues remaining after Phase 11.5 before any feature work begins. These are silent runtime bugs that corrupt config persistence, leak secrets, and break region capture.
@@ -156,13 +156,16 @@ Exit criteria:
 ### Phase 12.4: Discord Event System
 **Goal:** Transform Discord from "send a message" into an event policy layer. Core/Engine events dispatched to Discord with structured payloads and screenshot capture.
 **Depends on:** Phase 12.2, Phase 12.3
-**Status**: Pending
-**Plans**: 1 plan
+**Status**: In Progress (blockers fixed 2026-04-25)
+**Plans**: 1 plan (implementation started)
 Plans:
-- [ ] 12-4-01-PLAN.md — Event dispatcher: match_end, kill_milestone, combat_start, death, bot_error events; MSS screenshot to in-memory multipart upload (no temp file); has_webhook boolean; deduplicate kill milestones per match
+- [x] 12-4-01-PLAN.md — Worker & multipart fixes: QueuedDiscordEvent wrapper, worker sends real events, bot_error sanitizer wired, payload_json multipart format. FSM event wiring pending.
 
 Exit criteria:
 - Test webhook command works
+- Worker actually dispatches queued events to Discord (fixed: was log-only)
+- bot_error redacts sensitive data before sending (fixed: was raw message)
+- Screenshot+embed uses correct multipart format (fixed: was broken)
 - match_end sends summary
 - kill_milestone fires only once per threshold
 - death sends event
@@ -314,7 +317,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.1 Region & Position Service | 4/4 | Complete | 2026-04-24 |
 | 12.2 Smart Region Selector | 2/2 | Complete | 2026-04-24 |
 | 12.3 Combat Position Picker | 3/3 | Complete (hotfix 2026-04-25) | 2026-04-25 |
-| 12.4 Discord Event System | 1/1 | Pending | — |
+| 12.4 Discord Event System | 1/1 | In Progress (blockers fixed 2026-04-25) | — |
 | 12.5 Phase 12 Integration | 1/1 | Pending | — |
 | 13. Tauri Operator Shell | 3/3 | Pending | — |
 | 14. Real Production Build | 4/4 | Pending | — |

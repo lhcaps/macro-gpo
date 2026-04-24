@@ -18,8 +18,10 @@ Design decisions:
 from __future__ import annotations
 
 import io
+import json
 import logging
 import queue
+import re as _re
 import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
@@ -72,7 +74,6 @@ _SENSITIVE_PATTERNS = (
     r"File \"[^\"]+\", line \d+",   # traceback file refs
 )
 
-import re as _re
 
 _sensitive_re = _re.compile("|".join(_SENSITIVE_PATTERNS), _re.IGNORECASE)
 
@@ -257,7 +258,7 @@ def send_discord_event(
             screenshot_bytes.seek(0)
             response = requests.post(
                 webhook_url,
-                json=payload,
+                data={"payload_json": json.dumps(payload, ensure_ascii=False)},
                 files={"file": ("event_screenshot.png", screenshot_bytes.getvalue(), "image/png")},
                 timeout=10,
             )
@@ -269,11 +270,20 @@ def send_discord_event(
         return None
 
 
+@dataclass
+class QueuedDiscordEvent:
+    """Event wrapper for worker queue — carries webhook URL so worker doesn't need config."""
+
+    webhook_url: str
+    event: DiscordEvent
+    screenshot_region: dict | None = None
+
+
 # ---------------------------------------------------------------------------
 # Worker queue (singleton)
 # ---------------------------------------------------------------------------
 
-_event_queue: queue.Queue[DiscordEvent | None] = queue.Queue(maxsize=128)
+_event_queue: queue.Queue[QueuedDiscordEvent | None] = queue.Queue(maxsize=128)
 _worker_started = False
 _worker_lock = threading.Lock()
 
@@ -283,14 +293,23 @@ def _discord_worker() -> None:
     global _worker_started
     _log.info("Discord event worker started")
     while True:
-        event = _event_queue.get()
-        if event is None:   # shutdown sentinel
+        item = _event_queue.get()
+        if item is None:   # shutdown sentinel
             _log.info("Discord event worker stopping")
             break
         try:
-            _log.debug("Discord event: kind=%s title=%s", event.kind, event.title)
-        except Exception:
-            pass
+            screenshot_bytes = None
+            if item.event.include_screenshot:
+                screenshot_bytes = capture_screenshot_png_bytes(item.screenshot_region)
+            send_discord_event(
+                item.webhook_url,
+                item.event,
+                screenshot_bytes=screenshot_bytes,
+            )
+        except Exception as e:
+            _log.warning("Discord worker failed: %s", e)
+        finally:
+            _event_queue.task_done()
     _worker_started = False
 
 
@@ -310,7 +329,7 @@ def emit_event(config: dict, event: DiscordEvent) -> None:
     This is the entry point called by BackendCallbacks and ZedsuCore.
 
     Flow:
-        emit_event() → policy check → queue → return immediately (non-blocking)
+        emit_event() → policy check → webhook resolve → queue QueuedDiscordEvent → return immediately (non-blocking)
 
     The worker thread picks up the event, captures screenshot (if requested),
     and sends to Discord.
@@ -318,12 +337,15 @@ def emit_event(config: dict, event: DiscordEvent) -> None:
     if not should_dispatch(config, event.kind):
         return
 
+    webhook_url = get_discord_webhook(config)
+
     # bot_error: sanitize before queueing
     if event.kind == "bot_error":
+        safe_message = _sanitize_error_message(str(event.message))
         event = DiscordEvent(
             kind=event.kind,
             title="Bot Error",
-            message=f"Bot error: {event.message}  |  Operator hint: check backend.log",
+            message=f"Bot error: {safe_message} | Operator hint: check backend.log",
             severity="error",
             match_id=event.match_id,
             kills=event.kills,
@@ -333,7 +355,13 @@ def emit_event(config: dict, event: DiscordEvent) -> None:
 
     _ensure_worker()
     try:
-        _event_queue.put_nowait(event)
+        _event_queue.put_nowait(
+            QueuedDiscordEvent(
+                webhook_url=webhook_url,
+                event=event,
+                screenshot_region=event.metadata.get("screenshot_region"),
+            )
+        )
     except queue.Full:
         _log.warning("Discord event queue full; dropping event: %s", event.kind)
 

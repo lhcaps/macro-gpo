@@ -6,13 +6,13 @@ See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
 **Current focus:** Phase 12.4 — Discord Event System
-Active subphase: Phase 12.3 complete with hotfix (race guard + unified overlay tracker); 12.3.1 cleanup in progress
+Active subphase: Phase 12.3 complete with hotfix; 12.4 implementation started (3 blockers fixed 2026-04-25)
 
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.3 complete)
-Phase: 12.3 complete (hotfix); 12.3.1 cleanup (Discord contract + planning artifact); 12.4 pending
-Status: Phase 12.3 Smart Region Selector + Position Picker both complete; emergency_stop race fixed; 12.3.1 cleanup: ROADMAP status synced, Discord source-of-truth migrated, discord_event_service created, test_webhook command added
+Phase: 12.4 implementation in progress (3 blockers fixed); FSM event wiring next
+Status: Phase 12.3 complete (hotfix); 12.4 blockers fixed (worker sends, sanitizer wired, multipart format corrected); FSM wiring pending
 Next: Phase 12.4 plan (Discord Event System)
 
 Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.3 complete (12.4-12.5 pending)

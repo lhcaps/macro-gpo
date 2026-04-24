@@ -1,0 +1,16 @@
+12.4: fix 3 worker blockers before FSM wiring
+
+discord_event_service.py:
+- Queue typed as Queue[QueuedDiscordEvent]; emit_event resolves webhook_url
+  at emit time and enqueues QueuedDiscordEvent(webhook_url, event, region)
+- _discord_worker now calls send_discord_event() with MSS screenshot capture
+  (was: log-only, "eating events and dropping them")
+- bot_error sanitizer wired: _sanitize_error_message() redacts
+  URLs/credentials/paths/traceback refs before queueing
+- Screenshot+embed multipart fixed: data={"payload_json": json.dumps(payload)}
+  instead of broken json=payload + files={}
+
+Planning docs:
+- 12-4-01-PLAN.md: status updated, blocker summary added, FSM wiring marked pending
+- ROADMAP.md: Phase 12 summary line, Phase 12.4 entry, and table row updated to In Progress
+- STATE.md: current focus reflects 12.4 implementation started
