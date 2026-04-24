@@ -120,10 +120,10 @@ Exit criteria:
 ### Phase 12.2: Smart Region Selector
 **Goal:** Drag-to-select overlay for user-picked combat detection regions, stored as portable normalized [0-1] coordinates.
 **Depends on:** Phase 12.1
-**Status**: Pending
+**Status**: Planned
 **Plans**: 1 plan
 Plans:
-- [ ] 12-2-01-PLAN.md — Region selector: POST /command select_region, daemon overlay with drag-to-select, normalized area saved to combat_regions_v2, F6 hotkey, Enter confirm, Esc cancel
+- [x] 12-2-01-PLAN.md — Region selector: POST /command select_region, daemon overlay with drag-to-select, normalized area saved to combat_regions_v2, F6 hotkey, Enter confirm, Esc cancel
 
 Not doing: OCR/Tesseract, zoom lens, full dashboard, complex region editor.
 
