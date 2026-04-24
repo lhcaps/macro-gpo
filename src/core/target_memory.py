@@ -126,61 +126,65 @@ class TargetMemory:
         if enemy_dets:
             # Pick best detection (highest confidence, nearest to center as tiebreaker)
             best = self._pick_best_detection(enemy_dets, screen_center, screen_size)
-            class_id, conf, (x, y, w, h) = best
-
-            det_center_x = x + w / 2
-            det_center_y = y + h / 2
-            cx, cy = screen_center
-            center_dist = ((det_center_x - cx) ** 2 + (det_center_y - cy) ** 2) ** 0.5
-            center_err_x = det_center_x - cx
-            center_err_y = det_center_y - cy
-
-            if self._track is None:
-                # No existing track — start new one
-                self._track_counter += 1
-                self._track = TargetTrack(
-                    bbox=(x, y, w, h),
-                    confidence_ema=conf,
-                    last_seen_ts=now,
-                    first_seen_ts=now,
-                    lost_frames=0,
-                    hit_confirm_count=1 if hit_confirmed else 0,
-                    center_distance_ema=center_dist,
-                    source="yolo",
-                    track_id=self._track_counter,
-                )
+            if best is None:
+                # No viable detection after scoring — treat as no detection
+                enemy_dets = []
             else:
-                # Check if this detection matches the existing track
-                if self._bbox_overlaps((x, y, w, h), self._track.bbox):
-                    # Same target — update EMA
-                    self._track.bbox = (x, y, w, h)
-                    self._track.confidence_ema = (
-                        alpha * conf + (1 - alpha) * self._track.confidence_ema
+                class_id, conf, (x, y, w, h) = best
+
+                det_center_x = x + w / 2
+                det_center_y = y + h / 2
+                cx, cy = screen_center
+                center_dist = ((det_center_x - cx) ** 2 + (det_center_y - cy) ** 2) ** 0.5
+                center_err_x = det_center_x - cx
+                center_err_y = det_center_y - cy
+
+                if self._track is None:
+                    # No existing track — start new one
+                    self._track_counter += 1
+                    self._track = TargetTrack(
+                        bbox=(x, y, w, h),
+                        confidence_ema=conf,
+                        last_seen_ts=now,
+                        first_seen_ts=now,
+                        lost_frames=0,
+                        hit_confirm_count=1 if hit_confirmed else 0,
+                        center_distance_ema=center_dist,
+                        source="yolo",
+                        track_id=self._track_counter,
                     )
-                    self._track.center_distance_ema = (
-                        alpha * center_dist + (1 - alpha) * self._track.center_distance_ema
-                    )
-                    self._track.last_seen_ts = now
-                    self._track.lost_frames = 0
-                    if hit_confirmed:
-                        self._track.hit_confirm_count += 1
                 else:
-                    # Different target — switch penalty applies
-                    switch_score = conf - self._switch_penalty
-                    if switch_score > self._track.confidence_ema * 0.8:
-                        # Switch target
-                        self._track_counter += 1
-                        self._track = TargetTrack(
-                            bbox=(x, y, w, h),
-                            confidence_ema=conf,
-                            last_seen_ts=now,
-                            first_seen_ts=now,
-                            lost_frames=0,
-                            hit_confirm_count=1 if hit_confirmed else 0,
-                            center_distance_ema=center_dist,
-                            source="yolo",
-                            track_id=self._track_counter,
+                    # Check if this detection matches the existing track
+                    if self._bbox_overlaps((x, y, w, h), self._track.bbox):
+                        # Same target — update EMA
+                        self._track.bbox = (x, y, w, h)
+                        self._track.confidence_ema = (
+                            alpha * conf + (1 - alpha) * self._track.confidence_ema
                         )
+                        self._track.center_distance_ema = (
+                            alpha * center_dist + (1 - alpha) * self._track.center_distance_ema
+                        )
+                        self._track.last_seen_ts = now
+                        self._track.lost_frames = 0
+                        if hit_confirmed:
+                            self._track.hit_confirm_count += 1
+                    else:
+                        # Different target — switch penalty applies
+                        switch_score = conf - self._switch_penalty
+                        if switch_score > self._track.confidence_ema * 0.8:
+                            # Switch target
+                            self._track_counter += 1
+                            self._track = TargetTrack(
+                                bbox=(x, y, w, h),
+                                confidence_ema=conf,
+                                last_seen_ts=now,
+                                first_seen_ts=now,
+                                lost_frames=0,
+                                hit_confirm_count=1 if hit_confirmed else 0,
+                                center_distance_ema=center_dist,
+                                source="yolo",
+                                track_id=self._track_counter,
+                            )
 
         # Update lost state
         if self._track is not None and enemy_dets:
@@ -202,14 +206,23 @@ class TargetMemory:
     ) -> tuple:
         """Pick the best detection: highest confidence, nearest to center as tiebreaker."""
         cx, cy = screen_center
+        sw, sh = screen_size
+        diagonal = ((sw ** 2 + sh ** 2) ** 0.5) or 1.0
         best = None
         best_score = -1.0
         for det in detections:
-            class_id, conf, (x, y, w, h) = det
-            center_x = x + w / 2
-            center_y = y + h / 2
-            dist = ((center_x - cx) ** 2 + (center_y - cy) ** 2) ** 0.5
-            score = conf * 1000 - dist  # Confidence primary, distance secondary
+            class_id, conf, bbox = det
+            if isinstance(bbox, tuple) and len(bbox) == 4:
+                x, y, w, h = bbox
+            else:
+                continue
+            det_cx = x + w / 2
+            det_cy = y + h / 2
+            dist = ((det_cx - cx) ** 2 + (det_cy - cy) ** 2) ** 0.5
+            # Normalize distance to [0, 1] using screen diagonal
+            norm_dist = dist / diagonal
+            # Confidence primary (0-1), distance secondary (penalty up to 0.5)
+            score = conf - norm_dist * 0.5
             if score > best_score:
                 best_score = score
                 best = det
