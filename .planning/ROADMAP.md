@@ -121,9 +121,10 @@ Exit criteria:
 **Goal:** Drag-to-select overlay for user-picked combat detection regions, stored as portable normalized [0-1] coordinates.
 **Depends on:** Phase 12.1
 **Status**: Planned
-**Plans**: 1 plan
+**Plans**: 2 plans
 Plans:
-- [x] 12-2-01-PLAN.md — Region selector: POST /command select_region, daemon overlay with drag-to-select, normalized area saved to combat_regions_v2, F6 hotkey, Enter confirm, Esc cancel
+- [ ] 12-2-01-PLAN.md — Wave 1: Region selector overlay module (Tkinter drag-to-select, normalization, service integration)
+- [ ] 12-2-02-PLAN.md — Wave 2: Backend command handler (POST /command select_region, daemon thread, save+reload)
 
 Not doing: OCR/Tesseract, zoom lens, full dashboard, complex region editor.
 
