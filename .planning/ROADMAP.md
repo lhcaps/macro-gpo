@@ -99,12 +99,23 @@ Exit criteria:
 ### Phase 12.1: Region & Position Service Layer
 **Goal:** Create typed service helpers (list/set/delete/resolve) for regions and positions before building overlay UI. Keeps service logic decoupled from UI.
 **Depends on:** Phase 12.0
-**Status**: Pending
-**Plans**: 3 plans
+**Status**: Replanned (2026-04-24) — all blockers fixed before execution
+**Plans**: 4 plans (wave: 1A = 01+02 parallel, 1B = 03 depends on 01+02, VERIFICATION after)
 Plans:
-- [ ] 12-1-01-PLAN.md — Region model: list_regions(), set_region(), delete_region(), resolve_region(), validate_region()
-- [ ] 12-1-02-PLAN.md — Position model: list_positions(), set_position(), delete_position(), resolve_position(), validate_position()
-- [ ] 12-1-03-PLAN.md — Backend commands: POST /command get_regions, set_region, delete_region, get_positions, set_position, delete_position
+- [ ] 12-1-01-PLAN.md — Region model: list_regions(), set_region(), delete_region(), resolve_region(), resolve_all_regions(), validate_region_record(). Object schema `{area, kind, threshold, enabled, label}`. Service does NOT call save_config (backend owns persistence).
+- [ ] 12-1-02-PLAN.md — Position model: list_positions(), set_position(), delete_position(), resolve_position(), resolve_all_positions(), validate_position_record(). Full metadata schema `{x, y, label, enabled, captured_at, window_title}`. Service does NOT call save_config.
+- [ ] 12-1-03-PLAN.md — Backend commands: 11 actions (get_regions, set_region, delete_region, resolve_region, resolve_all_regions, get_positions, set_position, delete_position, resolve_position, resolve_all_positions, get_search_region). Backend owns save_config+load_config round-trip after mutations. Creates src/services/__init__.py. Closes Phase 12.0 V6 deferral.
+- [ ] 12-1-VERIFICATION.md — Smoke (compile, import), schema contract assertions, persistence check, get_search_region MSS dict, secret regression, all 11 commands present, no save_config in services, backend reloads after mutations.
+
+Exit criteria:
+- Region stored as object `{area, kind, threshold, enabled, label}` — NOT raw coords list
+- set_region payload uses `area`, not `coords` (coords alias accepted for backwards compat)
+- Position has full metadata: label, enabled, captured_at, window_title
+- All 11 commands wired (including resolve_*, resolve_all_*, get_search_region)
+- Service layer does NOT call save_config — backend does
+- __init__.py only created by Plan 03 (no parallel-write conflict)
+- Config changes survive save_config+load_config round-trip
+- Phase 12.0 V6 (get_search_region) resolved
 
 ### Phase 12.2: Smart Region Selector
 **Goal:** Drag-to-select overlay for user-picked combat detection regions, stored as portable normalized [0-1] coordinates.
