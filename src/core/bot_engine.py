@@ -159,7 +159,10 @@ class CombatStateMachine:
                 if config and should_dispatch(config, "kill_milestone"):
                     thresholds = (
                         config.get("discord_events", {})
-                        .get("kill_milestone_thresholds", [5, 10, 20])
+                        .get("kill_milestones")
+                        or config.get("discord_events", {})
+                        .get("kill_milestone_thresholds")
+                        or [5, 10, 20]
                     )
                     for threshold in thresholds:
                         if self._kill_count >= threshold:

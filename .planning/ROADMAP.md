@@ -219,8 +219,8 @@ Exit criteria:
 **Goal:** Build a premium, operator-grade Tauri shell for controlling, configuring, and observing the bot: tray-first operation, compact live HUD, full Settings v3, combat AI visibility, detection setup workflow, logs/diagnostics, and safe config editing. Not a UI redesign; a completion of the shell around the v3 architecture. Transform Zedsu from "tool that barely runs" into a real operator product.
 **Depends on:** Phase 10, Phase 12.5.1
 **Requirements**: New Phase 13 requirements TBD via discuss-phase
-**Status**: Pending
-**Plans**: 7 plans
+**Status**: Planned — 8/8 plans ready
+**Plans**: 8 plans
 Plans:
 - [ ] 13-00-PLAN.md — Wave 1: UI design system foundation: tokens.css, components.css, app.css, color/spacing/typography/motion tokens, base component library
 - [ ] 13-01-PLAN.md — Wave 1: Tray v2: state-colored tray icon (Gray/Green/Blue/Amber/Red), operational tray menu, left/right click behavior, graceful backend stop on quit, restart backend
