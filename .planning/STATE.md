@@ -5,15 +5,15 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12.4 — Discord Event System
-Active subphase: Phase 12.3 complete with hotfix; 12.4 implementation started (3 blockers fixed 2026-04-25)
+**Current focus:** Phase 12.5 — Phase 12 Integration Verification
+Active subphase: Phase 12.4 complete (2/2 plans); Phase 12.5 pending
 
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.3 complete)
-Phase: 12.4 implementation in progress (3 blockers fixed); FSM event wiring next
-Status: Phase 12.3 complete (hotfix); 12.4 blockers fixed (worker sends, sanitizer wired, multipart format corrected); FSM wiring pending
-Next: Phase 12.4 plan (Discord Event System)
+Phase: 12.4 complete (FSM wiring: 5 event types wired, 10 checks PASS); 12.5 integration verification pending
+Status: Phase 12.4 complete; 12.5 next
+Next: Phase 12.5 plan or discuss
 
 Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.3 complete (12.4-12.5 pending)
 
@@ -248,8 +248,21 @@ Phase 12.4-02 discuss complete. 9 decisions captured:
 - Discord embed formatting refinement → Phase 12.5
 - Per-event screenshot_region config → deferred
 
-**Artifacts:**
-- 12-4-CONTEXT.md updated (12.4-01 status preserved, 12.4-02 decisions locked)
-- 12-4-DISCUSSION-LOG.md written
+**Next:** Phase 12.5 — Integration Verification
 
-**Next:** Plan 12.4-02 — FSM Event Wiring
+## Session Continuity (2026-04-25 — Phase 12.4 Execute + Complete)
+
+Phase 12.4-02 FSM Event Wiring executed and verified:
+
+1. 5 event types wired into bot_engine.py:
+   - match_end: replaces legacy send_discord() in handle_post_match()
+   - kill_milestone: check in CombatStateMachine.update() on kill increment
+   - combat_start: emit in bot_loop() + auto_punch()
+   - death: _emit_death_event_once() with double-send guard
+   - bot_error: emit in bot_loop() exception handler
+
+2. All verification checks PASS (10/10)
+3. SUMMARY.md and VERIFICATION.md committed
+4. ROADMAP.md and STATE.md updated
+
+**Next:** Phase 12.5 — Phase 12 Integration Verification
