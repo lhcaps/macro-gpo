@@ -230,11 +230,11 @@ Expected: all return 1.
 ### V10: Service does NOT call save_config
 
 ```bash
-grep "save_config" src/services/region_service.py || echo "CLEAN: no save_config in region_service"
-grep "save_config" src/services/position_service.py || echo "CLEAN: no save_config in position_service"
+grep -n "from src.utils.config import save_config\|save_config(" src/services/region_service.py || echo "CLEAN: no save_config import/call in region_service"
+grep -n "from src.utils.config import save_config\|save_config(" src/services/position_service.py || echo "CLEAN: no save_config import/call in position_service"
 ```
 
-Expected: no output (save_config not called in services).
+Expected: no match for import or call of save_config in service files.
 
 ### V11: Backend reloads config after mutation
 
