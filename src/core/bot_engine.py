@@ -25,8 +25,6 @@ from src.utils.config import (
     resolve_coordinate,
     resolve_outcome_area,
 )
-from src.utils.discord import send_discord
-from src.services.discord_event_service import get_discord_webhook
 from src.utils.windows import (
     bring_window_to_foreground,
     find_window_by_title,
@@ -82,6 +80,7 @@ class CombatStateMachine:
         self._scan_timer = 0
         self._last_kill_detected = False
         self._last_yolo_scan_time = 0  # Phase 8: throttle YOLO scans
+        self._kill_milestone_sent: dict[int, bool] = {}  # Phase 12.4: per-match sent flags
 
         cfg = engine.app.config.get("combat_settings", {})
         self.disengage_timeout_sec = cfg.get("disengage_timeout_sec", 5.0)
@@ -121,6 +120,37 @@ class CombatStateMachine:
         if kill_confirmed and not self._last_kill_detected:
             self._kill_count += 1
             self.engine.log(f"[COMBAT] Kill #{self._kill_count} confirmed!")
+
+            # --- Phase 12.4: Kill milestone check ---
+            try:
+                from src.services.discord_event_service import (
+                    should_dispatch,
+                    dedupe_kill_milestone,
+                )
+                config = getattr(self.engine.app, 'config', {})
+                if config and should_dispatch(config, "kill_milestone"):
+                    thresholds = (
+                        config.get("discord_events", {})
+                        .get("kill_milestone_thresholds", [5, 10, 20])
+                    )
+                    for threshold in thresholds:
+                        if self._kill_count >= threshold:
+                            key = f"{getattr(self.engine.app, 'match_count', 0)}:{threshold}"
+                            if not self._kill_milestone_sent.get(key):
+                                self._kill_milestone_sent[key] = True
+                                if self.engine and hasattr(self.engine, '_callbacks'):
+                                    self.engine._callbacks.emit_event(
+                                        "kill_milestone",
+                                        title=f"Kill Milestone — #{threshold}",
+                                        message=f"{self._kill_count} kills reached",
+                                        match_id=getattr(self.engine.app, 'match_count', 0),
+                                        kills=threshold,
+                                        include_screenshot=False,
+                                        metadata={},
+                                    )
+            except Exception:
+                pass  # Kill milestone failures do not interrupt combat
+            # --- end Phase 12.4 ---
         self._last_kill_detected = kill_confirmed
 
         self._last_incombat_time = now if in_combat else self._last_incombat_time
@@ -225,12 +255,18 @@ class CombatStateMachine:
         self._kill_count = 0
         self._consecutive_engaged_frames = 0
         self._consecutive_no_signal_frames = 0
+        self._kill_milestone_sent = {}  # Phase 12.4: reset per-match milestone flags
         if self.engine._combat_detector:
             self.engine._combat_detector.reset()
 
     def on_death(self):
         """Called when death is detected."""
         self._transition_to(CombatState.SPECTATING)
+        # Phase 12.4: emit death event once (smart path — from FSM transition)
+        try:
+            self.engine._emit_death_event_once("combat_sm")
+        except Exception:
+            pass
 
     def on_results_screen(self):
         """Called when results screen detected."""
@@ -357,6 +393,10 @@ class BotEngine:
         self.cached_search_region = None
         self.cached_search_region_time = 0
         self.visibility_cache = {}
+        # Phase 12.4: Discord event system
+        self._last_screenshot_region = None
+        self._death_event_sent = False
+        self._callbacks = getattr(app, '_callbacks', getattr(app, 'callbacks', None))
 
         # Phase 5: Combat state machine
         self._combat_detector = None
@@ -543,6 +583,7 @@ class BotEngine:
     def mark_match_active(self, reason=None):
         if self.match_active:
             return False
+        self._death_event_sent = False  # Phase 12.4: reset death guard on new match
 
         self.match_active = True
         self.match_wait_transition_logged = False
@@ -556,8 +597,44 @@ class BotEngine:
             self.log(f"Match #{self.app.match_count} started.")
         return True
 
+    def _emit_death_event_once(self, source: str):
+        """
+        Emit a single death Discord event, guarded against double-send.
+        Smart path calls from CombatStateMachine.on_death() → _combat_sm.on_death() wrapper.
+        Non-smart path calls from handle_spectating_phase() entry.
+
+        Args:
+            source: "combat_sm" or "spectating_phase" — for logging only
+        """
+        if self._death_event_sent:
+            return
+        self._death_event_sent = True
+        try:
+            if hasattr(self, '_callbacks') and self._callbacks:
+                raw_region = self.get_search_region()
+                region = None
+                if raw_region:
+                    region = {
+                        "left": raw_region[0],
+                        "top": raw_region[1],
+                        "right": raw_region[2],
+                        "bottom": raw_region[3],
+                    }
+                self._callbacks.emit_event(
+                    "death",
+                    title=f"You Died — Match #{self.app.match_count}",
+                    message="You died",
+                    match_id=self.app.match_count,
+                    include_screenshot=True,
+                    metadata={"screenshot_region": region},
+                )
+                self.log(f"[COMBAT] Death event dispatched (source: {source}).")
+        except Exception:
+            pass  # Death event failures do not interrupt spectating watch
+
     def clear_match_active(self):
         self.match_active = False
+        self._death_event_sent = False  # Phase 12.4: reset death guard
         self.match_wait_transition_logged = False
         self.consecutive_return_prompt_scans = 0
         self.consecutive_melee_failures = 0
@@ -881,6 +958,11 @@ class BotEngine:
         self.consecutive_spectating_checks = 0
         self.consecutive_melee_failures = 0
         self.provisional_melee_until = 0
+        # Phase 12.4: emit death event once (non-smart path — from spectating detection)
+        try:
+            self._emit_death_event_once("spectating_phase")
+        except Exception:
+            pass
         self.log("Spectating detected during melee loop. Switching to post-death watch.")
         self.app.update_status("SPECTATING", "#7c3aed")
 
@@ -1072,6 +1154,19 @@ class BotEngine:
                     if self.app.config.get("combat_settings", {}).get("smart_combat_enabled", True):
                         self._ensure_combat_system()
                         self._combat_sm.on_match_start()
+                        # Phase 12.4: emit combat_start event
+                        try:
+                            if hasattr(self, '_callbacks') and self._callbacks:
+                                self._callbacks.emit_event(
+                                    "combat_start",
+                                    title=f"Combat Started — #{self.app.match_count}",
+                                    message="Combat started",
+                                    match_id=self.app.match_count,
+                                    include_screenshot=False,
+                                    metadata={},
+                                )
+                        except Exception:
+                            pass  # Combat start event failures do not interrupt combat loop
                         self._last_combat_tick = 0
                         while self.is_running():
                             sc = self.build_search_context()
@@ -1137,6 +1232,20 @@ class BotEngine:
                 self.sleep(self.app.config.get("scan_interval", 1.5))
             except Exception as exc:
                 self.log(f"Loop error: {exc}", is_error=True)
+                # Phase 12.4: emit bot_error event (sanitized in service layer)
+                try:
+                    if hasattr(self, '_callbacks') and self._callbacks:
+                        self._callbacks.emit_event(
+                            "bot_error",
+                            title="Bot Error",
+                            message=str(exc),
+                            source="bot_engine.bot_loop",
+                            match_id=getattr(self.app, 'match_count', None),
+                            include_screenshot=True,
+                            metadata={"screenshot_region": None},  # None = full screen capture
+                        )
+                except Exception:
+                    pass
                 self.sleep(2.0)
 
         self.app.update_status("IDLE", "#475569")
@@ -1314,6 +1423,19 @@ class BotEngine:
         ]
 
         self.log("Ultimate bar confirmed. Preparing melee stat setup.")
+        # Phase 12.4: emit combat_start for non-smart path
+        try:
+            if hasattr(self, '_callbacks') and self._callbacks:
+                self._callbacks.emit_event(
+                    "combat_start",
+                    title=f"Combat Started — #{self.app.match_count}",
+                    message="Combat started",
+                    match_id=self.app.match_count,
+                    include_screenshot=False,
+                    metadata={},
+                )
+        except Exception:
+            pass
         if not self.sleep(1.2):
             return False
 
@@ -1453,16 +1575,37 @@ class BotEngine:
                 last_progress_time = time.time()
 
             if (continue_visible or leave_visible) and not notification_sent:
-                screenshot_path = self.capture_result_screenshot()
+                # Phase 12.4: reset kill dedupe for this match
+                from src.services.discord_event_service import reset_kill_dedupe
+                reset_kill_dedupe(self.app.match_count)
+
+                # Capture screenshot region for emit
+                raw_region = self.get_search_region()
+                if raw_region:
+                    self._last_screenshot_region = {
+                        "left": raw_region[0],
+                        "top": raw_region[1],
+                        "right": raw_region[2],
+                        "bottom": raw_region[3],
+                    }
+
                 elapsed = max(0, min(3600, int(time.time() - self.match_start_time)))
                 elapsed_text = f"{elapsed // 60}m {elapsed % 60}s"
-                message = f"Queue #{self.app.match_count} finished in {elapsed_text}"
-                webhook_url = get_discord_webhook(self.app.config)
-                status_code = send_discord(webhook_url, message, file_path=screenshot_path)
-                if status_code:
-                    self.log(f"Discord notification sent ({status_code}).")
-                else:
-                    self.log("Discord notification skipped or failed.")
+                kills = 0
+                if self._combat_sm is not None:
+                    kills = self._combat_sm._kill_count
+
+                # emit_event replaces legacy callbacks.discord() — non-blocking via worker queue
+                self._callbacks.emit_event(
+                    "match_end",
+                    title=f"Match Complete — #{self.app.match_count}",
+                    message=f"{elapsed_text} | {kills} kills",
+                    match_id=self.app.match_count,
+                    kills=kills,
+                    include_screenshot=True,
+                    metadata={"screenshot_region": self._last_screenshot_region},
+                )
+                self.log(f"Discord match_end event dispatched (match #{self.app.match_count}).")
                 notification_sent = True
                 self.sleep(0.8)
 
