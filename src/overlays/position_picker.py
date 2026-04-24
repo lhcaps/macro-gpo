@@ -64,12 +64,30 @@ class PositionPickerOverlay:
         THIS thread. Blocks until root.quit() is called.
 
         If get_window_rect() returns None, sets error result and exits cleanly.
+        If result_event was already set (e.g. emergency_stop before Tk root exists),
+        exits immediately without creating any Tk window.
         """
+        # Race guard: if request_cancel() was called before we got here,
+        # exit without creating any Tk window.
+        if self.result_event.is_set():
+            return
+
         root = tk.Tk()
         root.withdraw()
         self._tk_root = root
 
+        # Race guard: emergency_stop may have fired while Tk was initializing
+        if self.result_event.is_set():
+            self._close()
+            return
+
         rect = get_window_rect(self.window_title)
+
+        # Race guard: check again after window rect lookup
+        if self.result_event.is_set():
+            self._close()
+            return
+
         if rect is None:
             self.result_data = {"action": "error", "message": "Window not found"}
             self.result_event.set()

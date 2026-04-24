@@ -977,6 +977,10 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                 # Overlay thread: ONLY calls overlay.run() — does NOT mutate config
                 overlay = RegionSelectorOverlay(window_title, region_name)
 
+                # per D-10: Track active overlay globally so emergency_stop can cancel it.
+                # Set BEFORE starting thread so emergency_stop can see it immediately.
+                _active_overlay = overlay
+
                 def _run_overlay():
                     try:
                         overlay.run()
@@ -991,53 +995,58 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                 overlay_thread.start()
 
                 # HTTP handler blocks here until overlay closes
-                result = overlay.get_result(timeout=300.0)  # 5 min max
-                overlay_thread.join(timeout=10.0)
+                # try/finally ensures _active_overlay is always cleared after overlay lifecycle,
+                # even if an exception occurs during result processing.
+                try:
+                    result = overlay.get_result(timeout=300.0)  # 5 min max
+                    overlay_thread.join(timeout=10.0)
 
-                # -- HTTP handler owns ALL result processing below this line --
-
-                if result is None:
-                    # Timeout — request cancel from handler thread, then respond
-                    overlay.request_cancel("Region selection timed out")
-                    overlay_thread.join(timeout=5.0)
-                    self._send_json({"status": "error", "message": "Region selection timed out"}, 408)
-                    return
-
-                action_type = result.get("action")
-
-                if action_type == "error":
-                    # Window not found or overlay crash (set inside overlay thread)
-                    self._send_json({"status": "error", "message": result.get("message", "Unknown error")}, 500)
-                    return
-
-                if action_type == "cancel":
-                    _backend_log.info("[SELECT_REGION] Region selection cancelled")
-                    self._send_json({"status": "cancelled", "message": "Region selection cancelled"})
-                    return
-
-                if action_type == "confirm":
-                    area = result.get("area", [])
-                    if not area:
-                        _backend_log.warning("[SELECT_REGION] No area in confirm result")
-                        self._send_json({"status": "error", "message": "No area selected"}, 400)
+                    if result is None:
+                        # Timeout
+                        overlay.request_cancel("Region selection timed out")
+                        overlay_thread.join(timeout=5.0)
+                        self._send_json({"status": "error", "message": "Region selection timed out"}, 408)
                         return
 
-                    # Config mutation ONLY in HTTP handler thread (no nested scope issues)
-                    success, err = set_region(_app_config, region_name, area, kind="generic")
-                    if not success:
-                        _backend_log.error(f"[SELECT_REGION] set_region failed: {err}")
-                        self._send_json({"status": "error", "message": f"set_region failed: {err}"}, 400)
+                    action_type = result.get("action")
+
+                    if action_type == "error":
+                        self._send_json({"status": "error", "message": result.get("message", "Unknown error")}, 500)
                         return
 
-                    save_config(_app_config)
-                    _app_config = load_config()
-                    _backend_log.info(f"[SELECT_REGION] Region saved: {region_name} area={area}")
-                    self._send_json({"status": "ok", "region": region_name, "area": area})
-                    return
+                    if action_type == "cancel":
+                        _backend_log.info("[SELECT_REGION] Region selection cancelled")
+                        self._send_json({"status": "cancelled", "message": "Region selection cancelled"})
+                        return
 
-                # Unknown action_type — shouldn't happen but handle gracefully
-                _backend_log.warning(f"[SELECT_REGION] Unknown selector result action: {action_type}")
-                self._send_json({"status": "error", "message": f"Unknown selector result: {action_type}"}, 500)
+                    if action_type == "confirm":
+                        area = result.get("area", [])
+                        if not area:
+                            _backend_log.warning("[SELECT_REGION] No area in confirm result")
+                            self._send_json({"status": "error", "message": "No area selected"}, 400)
+                            return
+
+                        success, err = set_region(_app_config, region_name, area, kind="generic")
+                        if not success:
+                            _backend_log.error(f"[SELECT_REGION] set_region failed: {err}")
+                            self._send_json({"status": "error", "message": f"set_region failed: {err}"}, 400)
+                            return
+
+                        save_config(_app_config)
+                        _app_config = load_config()
+                        _backend_log.info(f"[SELECT_REGION] Region saved: {region_name} area={area}")
+                        self._send_json({"status": "ok", "region": region_name, "area": area})
+                        return
+
+                    _backend_log.warning(f"[SELECT_REGION] Unknown selector result action: {action_type}")
+                    self._send_json({"status": "error", "message": f"Unknown selector result: {action_type}"}, 500)
+
+                finally:
+                    # Always clear _active_overlay if it still points to THIS overlay.
+                    # This guards against: thread cleanup window, exception during result processing,
+                    # or emergency_stop having already cleared it.
+                    if _active_overlay is overlay:
+                        _active_overlay = None
 
             # Phase 12.3: Combat position picker — click-to-capture overlay
             elif action == "pick_position":
