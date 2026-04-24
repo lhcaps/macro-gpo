@@ -15,6 +15,7 @@ import shutil
 import sys
 import threading
 import time
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # D-11.5a-02: emergency_stop releases all held game keys
@@ -64,6 +65,7 @@ _app_config = {}
 _core_instance = None
 _restart_count = 0
 _start_time = time.time()
+_active_overlay = None  # Phase 12.2/12.3: Active overlay tracker for emergency_stop cancellation
 
 # D-11.5a-02: Safety helper — releases ALL held game keys
 # Called by emergency_stop to ensure no key is stuck after hard stop.
@@ -634,7 +636,7 @@ class ZedsuHandler(BaseHTTPRequestHandler):
         self._send_json({"error": "Not found"}, 404)
 
     def do_POST(self):
-        global _app_config, _yolo_capture_active, _yolo_capture_class, _yolo_capture_count, _yolo_capture_start_time, _yolo_capture_thread, _yolo_quality_score, _yolo_quality_checked, _yolo_quality_warning, _yolo_quality_error
+        global _app_config, _yolo_capture_active, _yolo_capture_class, _yolo_capture_count, _yolo_capture_start_time, _yolo_capture_thread, _yolo_quality_score, _yolo_quality_checked, _yolo_quality_warning, _yolo_quality_error, _active_overlay
         parsed = urlparse(self.path)
         if parsed.path != '/command':
             self._send_json({"error": "Not found"}, 404)
@@ -706,6 +708,12 @@ class ZedsuHandler(BaseHTTPRequestHandler):
 
             elif action == "emergency_stop":
                 # D-11.5a-02: hard stop — release keys + stop core + mark IDLE
+                # per D-10: Cancel active overlay FIRST (Phase 12.2 + 12.3)
+                if _active_overlay is not None:
+                    _backend_log.info("[EMERGENCY_STOP] Cancelling active overlay")
+                    _active_overlay.request_cancel("Emergency stop")
+                    _active_overlay = None
+
                 global _app_status, _app_status_color
                 _release_all_game_keys()
                 if _core_instance is not None:
@@ -1030,6 +1038,116 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                 # Unknown action_type — shouldn't happen but handle gracefully
                 _backend_log.warning(f"[SELECT_REGION] Unknown selector result action: {action_type}")
                 self._send_json({"status": "error", "message": f"Unknown selector result: {action_type}"}, 500)
+
+            # Phase 12.3: Combat position picker — click-to-capture overlay
+            elif action == "pick_position":
+                # Clean separation: overlay runs UI only; HTTP handler owns result processing.
+                from src.utils.windows import get_window_rect
+                from src.utils.config import save_config, load_config
+                from src.services.position_service import set_position
+                from src.overlays.position_picker import PositionPickerOverlay
+
+                payload_data = data.get("payload") or {}
+                position_name = payload_data.get("name", "")
+
+                # per D-04: name is required — reject if missing or empty
+                if not position_name or not str(position_name).strip():
+                    self._send_json({"status": "error", "message": "Position name is required"}, 400)
+                    return
+
+                window_title = _app_config.get("game_window_title", "")
+                if not window_title:
+                    self._send_json({"status": "error", "message": "No game_window_title configured"}, 400)
+                    return
+
+                rect = get_window_rect(window_title)
+                if rect is None:
+                    self._send_json({"status": "error", "message": f"Window not found: {window_title}"}, 404)
+                    return
+
+                _backend_log.info(f"[PICK_POSITION] Starting overlay for position=%s window=%s", position_name, window_title)
+
+                # per D-10: Track active overlay globally so emergency_stop can cancel it.
+                # Set BEFORE starting thread so emergency_stop can see it immediately.
+                overlay = PositionPickerOverlay(window_title, position_name)
+                _active_overlay = overlay
+
+                def _run_overlay():
+                    try:
+                        overlay.run()
+                    except Exception as e:
+                        _backend_log.error(f"[PICK_POSITION] Overlay thread error: {e}")
+                        if not overlay.result_event.is_set():
+                            overlay.result_data = {"action": "error", "message": f"Overlay error: {e}"}
+                            overlay.result_event.set()
+
+                # NON-daemon thread so HTTP handler can join() it
+                overlay_thread = threading.Thread(target=_run_overlay, name="PositionPicker")
+                overlay_thread.start()
+
+                # HTTP handler blocks here until overlay closes
+                # try/finally ensures _active_overlay is always cleared after overlay lifecycle,
+                # even if an exception occurs during result processing.
+                try:
+                    result = overlay.get_result(timeout=300.0)  # 5 min max
+                    overlay_thread.join(timeout=10.0)
+
+                    if result is None:
+                        # Timeout
+                        overlay.request_cancel("Position selection timed out")
+                        overlay_thread.join(timeout=5.0)
+                        self._send_json({"status": "error", "message": "Position selection timed out"}, 408)
+                        return
+
+                    action_type = result.get("action")
+
+                    if action_type == "error":
+                        # Window not found or overlay crash
+                        self._send_json({"status": "error", "message": result.get("message", "Unknown error")}, 500)
+                        return
+
+                    if action_type == "cancel":
+                        _backend_log.info("[PICK_POSITION] Position selection cancelled")
+                        self._send_json({"status": "cancelled", "message": "Position selection cancelled"})
+                        return
+
+                    if action_type == "confirm":
+                        x = result.get("x")
+                        y = result.get("y")
+                        if x is None or y is None:
+                            _backend_log.warning("[PICK_POSITION] No x/y in confirm result")
+                            self._send_json({"status": "error", "message": "No position captured"}, 400)
+                            return
+
+                        # per D-07: capture timezone-aware timestamp and window_title at click time
+                        captured_at = datetime.now(timezone.utc).isoformat()
+
+                        # per D-09: Backend (NOT overlay) calls set_position() + save_config() + load_config()
+                        success, err = set_position(
+                            _app_config, position_name, x, y,
+                            captured_at=captured_at, window_title=window_title
+                        )
+                        if not success:
+                            _backend_log.error(f"[PICK_POSITION] set_position failed: {err}")
+                            self._send_json({"status": "error", "message": f"set_position failed: {err}"}, 400)
+                            return
+
+                        save_config(_app_config)
+                        _app_config = load_config()
+                        _backend_log.info(f"[PICK_POSITION] Position saved: {position_name} x={x} y={y}")
+                        self._send_json({"status": "ok", "name": position_name, "x": x, "y": y})
+                        return
+
+                    # Unknown action_type
+                    _backend_log.warning(f"[PICK_POSITION] Unknown overlay result action: {action_type}")
+                    self._send_json({"status": "error", "message": f"Unknown selector result: {action_type}"}, 500)
+
+                finally:
+                    # Always clear _active_overlay if it still points to THIS overlay.
+                    # This guards against: thread cleanup window, exception during result processing,
+                    # or emergency_stop having already cleared it.
+                    if _active_overlay is overlay:
+                        _active_overlay = None
 
             else:
                 self._send_json({"error": f"Unknown action: {action}"}, 400)
