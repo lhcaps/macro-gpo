@@ -79,6 +79,32 @@
             letter-spacing: 0.3px;
         }
 
+        .model-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 6px;
+        }
+
+        #model-text {
+            font-size: 11px;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+            color: var(--color-muted);
+        }
+
+        .model-ok {
+            color: #22c55e;
+        }
+
+        .model-warn {
+            color: #f59e0b;
+        }
+
+        .model-error {
+            color: #ef4444;
+        }
+
         /* State-specific styles */
         .state-idle {
             color: var(--color-idle);
@@ -159,6 +185,9 @@
         <div class="stats-row">
             <span id="stats-text">&#x23F1; 00:00 | &#x2694; Kills: 0 | &#x26A1; 0ms</span>
         </div>
+        <div class="model-row">
+            <span id="model-text" class="model-error">&#x1F9D0; No model</span>
+        </div>
     </div>
 
     <script>
@@ -194,6 +223,7 @@
         // DOM elements
         const stateText = document.getElementById('state-text');
         const statsText = document.getElementById('stats-text');
+        const modelText = document.getElementById('model-text');
 
         // Format elapsed time as MM:SS
         function formatElapsed(startMs) {
@@ -216,6 +246,32 @@
             stateText.classList.add(stateClass);
             // Set text content
             stateText.textContent = `[ ${emoji} ${combatState} ]`;
+        }
+
+        // Update model quality display
+        function updateModelDisplay(yoloModel) {
+            const modelEl = modelText;
+            if (!modelEl) return;
+
+            const available = yoloModel && yoloModel.available;
+            const qualityScore = yoloModel && yoloModel.quality_score;
+
+            if (!available) {
+                modelEl.textContent = '\uD83E\uDDD0 No model';
+                modelEl.className = 'model-error';
+            } else if (qualityScore !== null && qualityScore !== undefined) {
+                const pct = Math.round(qualityScore * 100);
+                if (qualityScore < 0.60) {
+                    modelEl.textContent = `\uD83D\uDCA1 Quality: ${pct}%`;
+                    modelEl.className = 'model-warn';
+                } else {
+                    modelEl.textContent = '\u2705 Model OK';
+                    modelEl.className = 'model-ok';
+                }
+            } else {
+                modelEl.textContent = '\u2705 Model OK';
+                modelEl.className = 'model-ok';
+            }
         }
 
         // Update stats display
@@ -265,6 +321,11 @@
                     // Update stats display
                     const stats = hudState.stats || {};
                     updateStatsDisplay(stats.kills, stats.detection_ms);
+
+                    // Update YOLO model quality display
+                    if (hudState.yolo_model) {
+                        updateModelDisplay(hudState.yolo_model);
+                    }
                 }
             } catch (err) {
                 // Show error state gracefully
