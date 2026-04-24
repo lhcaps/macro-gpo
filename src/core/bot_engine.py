@@ -39,6 +39,10 @@ from src.utils.windows import (
 from src.services.match_telemetry import MatchTelemetry, CombatTick, MatchSummary
 # Phase 12.5: Target memory
 from src.core.target_memory import TargetMemory, TargetDecision
+# Phase 12.5: Combat situation model
+from src.core.combat_situation import CombatSituationModel, CombatSituation, Intent
+# Phase 12.5: Movement policy
+from src.core.movement_policy import MovementPolicy, ScoredAction, MovementAction
 
 
 # ============================================================
@@ -99,6 +103,10 @@ class CombatStateMachine:
         self.kill_steal_resilient = cfg.get("kill_steal_resilient", True)
         # Phase 12.5: Share target memory with engine
         self._target_memory = engine._target_memory
+        # Phase 12.5: Share situation model with engine
+        self._situation_model: Optional[CombatSituationModel] = engine._situation_model
+        # Phase 12.5: Movement policy reference
+        self._movement_policy: Optional[MovementPolicy] = engine._movement_policy
 
     @property
     def state_name(self):
@@ -225,9 +233,46 @@ class CombatStateMachine:
         except Exception:
             pass  # Non-fatal
 
+        # Phase 12.5: Compute combat situation
+        try:
+            if self._situation_model is not None:
+                # Re-call target_memory.update to get decision (idempotent)
+                target_dec = self._target_memory.update(
+                    yolo_detections=yolo_detections,
+                    signals=signals,
+                    screen_center=screen_center,
+                    screen_size=screen_size,
+                )
+                track = self._target_memory.get_track()
+                visible_count = 1 if track and track.bbox else 0
+                if signals.get("enemy_nearby") or signals.get("in_combat"):
+                    if visible_count == 0:
+                        visible_count = 1
+
+                situation = self._situation_model.assess(
+                    signals=signals,
+                    target_decision=target_dec,
+                    visible_enemy_count=visible_count,
+                    target_confidence_ema=getattr(target_dec, "confidence_ema", 0.0),
+                )
+
+                action["situation"] = {
+                    "crowd_risk": situation.crowd_risk,
+                    "death_risk": situation.death_risk,
+                    "recommended_intent": situation.recommended_intent,
+                    "target_loss_risk": situation.target_loss_risk,
+                    "player_hp_low": situation.player_hp_low,
+                    "visible_enemy_count": situation.visible_enemy_count,
+                    "nearby_enemy_count": situation.nearby_enemy_count,
+                    "crowd_risk_breakdown": situation.crowd_risk_breakdown,
+                }
+        except Exception:
+            pass  # Non-fatal
+
         # Phase 12.5: Record combat tick
         try:
             target_info = action.get("target_memory", {})
+            situation_info = action.get("situation", {})
             tick = CombatTick(
                 ts=time.time(),
                 t_match=time.time() - self.engine.match_start_time if self.engine.match_start_time else 0.0,
@@ -242,8 +287,16 @@ class CombatStateMachine:
                     "center_error_x": target_info.get("center_error_x", 0.0),
                     "center_error_y": target_info.get("center_error_y", 0.0),
                 },
-                risk={},   # Filled by plan 03
-                decision=target_info,
+                risk={
+                    "crowd_risk": situation_info.get("crowd_risk", 0.0),
+                    "death_risk": situation_info.get("death_risk", 0.0),
+                    "target_loss_risk": situation_info.get("target_loss_risk", 0.0),
+                    "visible_enemy_count": situation_info.get("visible_enemy_count", 0),
+                },
+                decision={
+                    "intent": situation_info.get("recommended_intent", "scan"),
+                    "target_memory": target_info,
+                },
             )
             self.engine._telemetry.record_tick(tick)
         except Exception:
@@ -486,6 +539,10 @@ class BotEngine:
         self._telemetry = MatchTelemetry.get_instance(getattr(app, 'config', {}))
         # Phase 12.5: Target memory
         self._target_memory = TargetMemory(getattr(app, 'config', {}))
+        # Phase 12.5: Combat situation model
+        self._situation_model = CombatSituationModel(getattr(app, 'config', {}))
+        # Phase 12.5: Movement policy
+        self._movement_policy = MovementPolicy(getattr(app, 'config', {}))
 
     def start(self):
         self.stop_requested = False
@@ -599,6 +656,8 @@ class BotEngine:
              keys_cfg.get("backward", "s"),
              keys_cfg.get("right", "d")],
             bursts=random.randint(1, 2),
+            situation=action.get("situation"),
+            target_decision=action.get("target_memory"),
         )
 
     def _execute_fleeing(self, action):
@@ -683,6 +742,12 @@ class BotEngine:
         # Phase 12.5: Reset target memory on new match
         try:
             self._target_memory.reset()
+        except Exception:
+            pass
+
+        # Phase 12.5: Reset movement policy on new match
+        try:
+            self._movement_policy.reset()
         except Exception:
             pass  # Non-fatal
 
@@ -1194,10 +1259,103 @@ class BotEngine:
             for key in reversed(active_keys):
                 pydirectinput.keyUp(key)
 
-    def perform_dynamic_combat_movement(self, move_keys, bursts=None):
-        if len(move_keys) < 4:
-            return None
+    def perform_dynamic_combat_movement(self, move_keys, bursts=None, situation=None, target_decision=None):
+        """
+        Phase 12.5: Replaced body with scored movement policy.
+        Old random pattern selection is preserved as fallback.
 
+        Args:
+            move_keys: [forward, left, backward, right] — kept for fallback
+            bursts: number of movement steps (default random 1-3)
+            situation: CombatSituation from situation model
+            target_decision: TargetDecision from target memory
+        """
+        steps = bursts if bursts is not None else random.randint(1, 3)
+        last_action = None
+
+        for _ in range(steps):
+            if not self.is_running():
+                return None
+
+            # Phase 12.5: Scored movement selection
+            try:
+                if self._movement_policy is not None and situation is not None:
+                    intent = situation.get("recommended_intent", "engage") if isinstance(situation, dict) else getattr(situation, "recommended_intent", "engage")
+
+                    class _SitStub:
+                        def __init__(self, d):
+                            self.crowd_risk = d.get("crowd_risk", 0.0)
+                            self.player_hp_low = d.get("player_hp_low", False)
+                            self.death_risk = d.get("death_risk", 0.0)
+                            self.visible_enemy_count = d.get("visible_enemy_count", 0)
+                            self.nearby_enemy_count = d.get("nearby_enemy_count", 0)
+                    sit = _SitStub(situation) if isinstance(situation, dict) else situation
+
+                    action = self._movement_policy.choose_action(
+                        intent=intent,
+                        situation=sit,
+                        target_decision=target_decision,
+                        last_action=last_action,
+                    )
+
+                    if action.name == "hold_position":
+                        if not self.sleep(random.uniform(*action.duration_range)):
+                            return False
+                        last_action = "hold_position"
+                        continue
+
+                    actual_keys = []
+                    for k in action.keys:
+                        if k == "w" and len(move_keys) > 0:
+                            actual_keys.append(move_keys[0])
+                        elif k == "a" and len(move_keys) > 1:
+                            actual_keys.append(move_keys[1])
+                        elif k == "s" and len(move_keys) > 2:
+                            actual_keys.append(move_keys[2])
+                        elif k == "d" and len(move_keys) > 3:
+                            actual_keys.append(move_keys[3])
+
+                    if actual_keys:
+                        if not self.hold_movement_keys(actual_keys, random.uniform(*action.duration_range)):
+                            return False
+
+                    err_x = getattr(target_decision, "center_error_x", 0.0) if target_decision else 0.0
+                    if "camera_correct" in action.name:
+                        if "left" in action.name:
+                            pydirectinput.moveRel(-abs(int(err_x * 0.5)) if err_x < 0 else -50, 0)
+                        elif "right" in action.name:
+                            pydirectinput.moveRel(abs(int(err_x * 0.5)) if err_x > 0 else 50, 0)
+
+                    if "scan" in action.name:
+                        if "left" in action.name:
+                            pydirectinput.moveRel(-60, random.randint(-10, 10))
+                        elif "right" in action.name:
+                            pydirectinput.moveRel(60, random.randint(-10, 10))
+
+                    last_action = action.name
+
+                else:
+                    if not self._execute_random_movement_fallback(move_keys):
+                        return False
+                    last_action = None
+            except Exception:
+                if not self._execute_random_movement_fallback(move_keys):
+                    return False
+                last_action = None
+
+            status = self.handle_combat_exit_conditions(search_context=self.build_search_context())
+            if status:
+                return status
+
+            if not self.sleep(random.uniform(0.05, 0.12)):
+                return False
+
+        return None
+
+    def _execute_random_movement_fallback(self, move_keys) -> bool:
+        """Fallback to old pure-random movement behavior."""
+        if len(move_keys) < 4:
+            return True
         forward, left, backward, right = move_keys[:4]
         patterns = [
             ([left], (0.11, 0.2)),
@@ -1208,24 +1366,8 @@ class BotEngine:
             ([backward, right], (0.1, 0.18)),
             ([forward], (0.16, 0.28)),
         ]
-
-        steps = bursts if bursts is not None else random.randint(1, 3)
-        for _ in range(steps):
-            pattern_keys, duration_range = random.choice(patterns)
-            if not self.hold_movement_keys(pattern_keys, random.uniform(*duration_range)):
-                return False
-
-            if random.random() < 0.85:
-                pydirectinput.moveRel(random.randint(-165, 165), random.randint(-24, 24))
-
-            status = self.handle_combat_exit_conditions(search_context=self.build_search_context())
-            if status:
-                return status
-
-            if not self.sleep(random.uniform(0.05, 0.12)):
-                return False
-
-        return None
+        pattern_keys, duration_range = random.choice(patterns)
+        return bool(self.hold_movement_keys(pattern_keys, random.uniform(*duration_range)))
 
     def bot_loop(self):
         self.start()
