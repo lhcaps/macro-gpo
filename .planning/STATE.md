@@ -228,5 +228,28 @@ Phase 12.3 hotfix applied (f824be9):
 - emergency_stop now cancels BOTH overlays safely
 - 12-3-REVIEW.md committed (was local-only)
 
-All artifacts synced to current state.
-Next: Phase 12.4 (Discord Event System)
+## Session Continuity (2026-04-25 — 12.4-02 FSM Event Wiring discuss)
+
+Phase 12.4-02 discuss complete. 9 decisions captured:
+
+**Wiring decisions:**
+1. Wire into bot_engine.py only (live backend engine), NOT zedsu_core.py
+2. match_end: emit_event() replaces legacy callbacks.discord() in handle_post_match()
+3. match_end screenshot: MSS in-memory BytesIO via capture_screenshot_png_bytes() (no temp file)
+4. match_id: roundtrip — engine increments _match_count internally; backend canonical ID from ZedsuCore._match_count via BackendCallbacks.on_match_detected()
+5. combat_start: fires on CombatStateMachine.on_match_start() (SCANNING transition), NOT on_match_detected()
+6. death: fires on CombatStateMachine.on_death() (any path to SPECTATING)
+7. kill_milestone: configurable thresholds from discord_events.kill_milestone_thresholds, default [5, 10, 20]; dedupe per match via dedupe_kill_milestone(); reset at match end via reset_kill_dedupe()
+8. bot_error: from bot_engine.bot_loop() exception handler → callbacks.emit_event() → BackendCallbacks bridge → sanitizer
+9. BackendCallbacks.emit_event() bridge — already correct, no changes needed
+
+**Deferred:**
+- zedsu_core.py event wiring → Phase 16
+- Discord embed formatting refinement → Phase 12.5
+- Per-event screenshot_region config → deferred
+
+**Artifacts:**
+- 12-4-CONTEXT.md updated (12.4-01 status preserved, 12.4-02 decisions locked)
+- 12-4-DISCUSSION-LOG.md written
+
+**Next:** Plan 12.4-02 — FSM Event Wiring
