@@ -137,12 +137,14 @@ Exit criteria:
 ### Phase 12.3: Combat Position Picker
 **Goal:** Click-to-capture skill/action positions portable by window ratio, replacing hardcoded coords.
 **Depends on:** Phase 12.1
-**Status**: Complete (2026-04-25) — 16/16 verification checks PASS
+**Status**: Complete (2026-04-25) — 16/16 verification checks PASS + hotfix applied
 **Plans**: 3/3 complete
 Plans:
 - [x] 12-3-01-PLAN.md — Wave 1: PositionPickerOverlay Tkinter module
 - [x] 12-3-02-PLAN.md — Wave 1B: Backend pick_position handler + emergency_stop overlay cancel
 - [x] 12-3-03-PLAN.md — Wave 2: Verification (16/16 checks PASS)
+
+**Hotfix (2026-04-25):** Race guard added to both overlay.run() methods — emergency_stop firing before Tk root creation now safely exits without showing a window. _active_overlay unified for both select_region and pick_position. emergency_stop cancels both overlays. REVIEW: 12-3-REVIEW.md (0 critical, 0 warnings, 1 info).
 
 Suggested names: melee, skill_1, skill_2, skill_3, ultimate, dash, block, aim_center, return_lobby.
 

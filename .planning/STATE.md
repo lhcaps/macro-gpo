@@ -5,17 +5,17 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12.3 — Combat Position Picker (planning complete)
-Active subphase: 12.3 Combat Position Picker (discuss done)
+**Current focus:** Phase 12.4 — Discord Event System (pending discuss/plan)
+Active subphase: Phase 12.3 complete with hotfix (race guard + unified overlay tracker)
 
 ## Current Position
 
-Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.2 complete)
-Phase: 12.3 plans ready (3 plans: 01 overlay, 02 backend handler, 03 verification)
-Status: Phase 12.2 Smart Region Selector complete; Phase 12.3 plans ready (3 plans)
-Next: Phase 12.3 execute (3 plans: overlay + backend handler + verification)
+Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.3 complete)
+Phase: 12.3 complete + hotfix applied; Phase 12.4 pending
+Status: Phase 12.3 Smart Region Selector + Position Picker both complete; emergency_stop race fixed
+Next: Phase 12.4 discuss/plan (Discord Event System)
 
-Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.2 complete (12.3-12.5 pending)
+Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.3 complete (12.4-12.5 pending)
 
 ## Accumulated Context
 
@@ -193,4 +193,21 @@ All 3 exit criteria verified:
 - Position survives window resize (normalized [0-1] coords)
 - emergency_stop cancels overlay safely (via _active_overlay)
 
+Post-execution review found 3 issues — hotfix applied:
+1. Race condition: PositionPickerOverlay.run() added 3-point result_event.is_set() guards
+2. Same race guard added to RegionSelectorOverlay.run()
+3. select_region now uses _active_overlay tracking (was only pick_position before)
+4. 12-3-REVIEW.md committed to repo
+
 Next: Phase 12.4 (Discord Event System) or Phase 12.5 (Integration)
+
+## Session Continuity (2026-04-25 — Hotfix + Artifact sync)
+
+Phase 12.3 hotfix applied (f824be9):
+- 3-point race guard in both overlay.run() methods
+- _active_overlay unified for select_region + pick_position
+- emergency_stop now cancels BOTH overlays safely
+- 12-3-REVIEW.md committed (was local-only)
+
+All artifacts synced to current state.
+Next: Phase 12.4 (Discord Event System)
