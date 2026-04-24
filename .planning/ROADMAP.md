@@ -33,7 +33,7 @@ Zedsu v3 transforms the monolithic single-process Python app into the **3-tier a
 **Goal:** Restructure Zedsu into Bridger-style 3-tier architecture — ZedsuCore (logic) + ZedsuBackend (HTTP API) + ZedsuFrontend (Rust/Tauri WebView). Migrate all v2 logic, kill process coupling, add Rust process supervisor.
 **Depends on:** Phase 7, Phase 8 (all v2 complete)
 **Requirements**: New v3 requirements TBD via discuss-phase
-**Status**: 🔄 Planning Phase — plans ready
+**Status**: Complete — UAT: 16/16 pass, cargo check: PASS, backend endpoints verified
 **Plans**: 3 plans
 Plans:
 - [ ] 09-01-PLAN.md — Wave 1: Extract ZedsuCore (Tier 1)
@@ -44,8 +44,13 @@ Plans:
 **Goal:** Build the Tauri 2.x WebView GUI replacing Tkinter app.py. Process supervisor, transparent overlay, hotkey management, state polling from Backend.
 **Depends on**: Phase 9
 **Requirements**: New v3 requirements TBD
-**Status**: Pending
-**Plans**: 0 plans
+**Status**: Ready to execute
+**Plans**: 4 plans
+Plans:
+- [x] 10-01-PLAN.md — Wave 1: HUD HTML/CSS/JS with glassmorphism + IPC command
+- [x] 10-02-PLAN.md — Wave 1: Cargo.toml deps + tauri.conf.json config (hidden main + HUD window)
+- [x] 10-03-PLAN.md — Wave 2: lib.rs hotkey integration (F1-F4 handlers)
+- [x] 10-04-PLAN.md — Wave 3: Verification (cargo check + manual test)
 
 ### Phase 11: YOLO Training Integration
 **Goal:** Enhance Phase 8 YOLO training workflow with the improved approach from Bridger's reference. Better dataset collection UI, training pipeline automation, ONNX export.
@@ -91,8 +96,8 @@ v3: Phase 9 → 10 → 11 → 12 → 13 → 14
 | 6. System Tray Operation | 1/1 | Complete | — |
 | 7. Window Binding Hardening | 1/1 | Complete | — |
 | 8. YOLO Detection | 1/1 | Complete | 2026-04-24 |
-| 9. 3-Tier Architecture | 0/0 | 🔄 Discuss Phase | — |
-| 10. Rust/Tauri GUI | 0/0 | Pending | — |
+| 9. 3-Tier Architecture | 3/3 | Complete | 2026-04-24 |
+| 10. Rust/Tauri GUI | 4/4 | Ready | — |
 | 11. YOLO Training Integration | 0/0 | Pending | — |
 | 12. Backend Feature Parity | 0/0 | Pending | — |
 | 13. System Tray v3 | 0/0 | Pending | — |
@@ -161,3 +166,4 @@ Tier 1: bridger.py (Python)
 - `mss.sct.grab(monitor[0])` → PIL Image → PNG → base64
 - `embed["embeds"][0]["image"] = {"url": f"data:image/png;base64,{b64}"}`
 - Discord accepts data URI in embed image — no upload server needed
+
