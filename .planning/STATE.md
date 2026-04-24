@@ -5,7 +5,7 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Fast, intelligent, real-combat macro with 3-tier architecture and modern Rust/Tauri GUI.
-**Current focus:** Phase 10 — Modern Rust/Tauri GUI (planned, 4 plans in 3 waves)
+**Current focus:** Phase 11 — YOLO Training Integration (planned, 3 plans in 3 waves)
 
 ## Current Position
 

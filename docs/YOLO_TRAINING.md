@@ -1,6 +1,41 @@
-# YOLO Training Guide for Zedsu v2 — Phase 8
+# YOLO Training Guide for Zedsu v3 — Phase 8 & Phase 11
 
-> **TL;DR:** Collect 300+ screenshots → LabelImg annotate → Train YOLO11n (imgsz=640) → Export ONNX (opset=11) → Place at `assets/models/yolo_gpo.onnx`
+> **TL;DR:** Collect 300+ screenshots (toggle capture or manual) → LabelImg annotate → `python scripts/train_yolo.py --epochs 100` → Model auto-installed to `assets/models/yolo_gpo.onnx`
+
+## Quick Start (Phase 11)
+
+Phase 11 adds an automated toggle capture system. Two ways to collect data:
+
+**Method A — In-App Toggle Capture (Recommended):**
+1. Open Zedsu → Settings or press F2
+2. Find the YOLO Training section
+3. Select your class (e.g., `enemy_player`)
+4. Click **Start Capture** (or send `yolo_capture_start` command via frontend)
+5. Play the game normally — screenshots capture at 1 frame/second automatically
+6. Click **Stop Capture** when done
+7. Annotate with LabelImg → Train
+
+**Method B — Manual Folder Import:**
+1. Manually take screenshots while playing
+2. Organize into `dataset_yolo/{class_name}/` folders
+3. Annotate with LabelImg → Train
+
+## Backend API Commands (Phase 11)
+
+```bash
+# Start toggle capture
+curl -X POST http://127.0.0.1:9761/command \
+  -H "Content-Type: application/json" \
+  -d '{"action": "yolo_capture_start", "payload": {"class_name": "enemy_player"}}'
+
+# Stop capture
+curl -X POST http://127.0.0.1:9761/command \
+  -H "Content-Type: application/json" \
+  -d '{"action": "yolo_capture_stop"}'
+
+# Check capture state
+curl http://127.0.0.1:9761/state | jq .yolo_model
+```
 
 ## Overview
 
@@ -16,8 +51,15 @@ pip install ultralytics labelImg
 
 ## Step 1: Collect Screenshots
 
-Use Zedsu's built-in dataset collection tool:
+Use the Phase 11 toggle capture system or manual folder import:
 
+**Toggle Capture (Phase 11):**
+1. Open Zedsu → Settings or send `yolo_capture_start` command
+2. Set target class (e.g., `enemy_player`)
+3. Play the game — captures 1 frame/second automatically
+4. Stop capture when done → images saved to `dataset_yolo/{class}/`
+
+**Manual Collection (Legacy):**
 1. Open game window in **first-person camera** (recommended)
 2. Go to Settings → YOLO Neural Detection
 3. Set class to label (e.g., `enemy_player`)
@@ -114,24 +156,51 @@ names:
 nc: 10
 ```
 
-## Step 5: Train YOLO11n
+## Step 5: Train YOLO11n (Automated)
+
+Use the Phase 11 training script for a fully automated pipeline:
 
 ```bash
-yolo detect train data=dataset_yolo/data.yaml model=yolo11n.pt epochs=100 imgsz=640 device=cpu patience=20
+python scripts/train_yolo.py --dataset dataset_yolo --epochs 100
 ```
 
-| Hardware | Time |
-|---------|------|
-| RTX GPU | ~30 min |
-| CPU (i7) | ~2-4 hours |
+The script automatically:
+- Detects CUDA GPU or falls back to CPU
+- Splits dataset into train/val (80/20)
+- Generates data.yaml with correct class order
+- Backs up the current model to `yolo_gpo_backup_YYYYMMDD_HHMM.onnx`
+- Trains YOLO11n for the specified epochs
+- Exports to ONNX with opset=11 (cv2.dnn compatible)
+- Installs to `assets/models/yolo_gpo.onnx`
+
+### Manual Training (Legacy)
+
+If you prefer manual control:
+
+```bash
+# Train
+yolo detect train data=dataset_yolo/data.yaml model=yolo11n.pt epochs=100 imgsz=640 device=cpu patience=20
+
+# Export
+yolo export model=runs/detect/train/weights/best.pt format=onnx imgsz=640 opset=11
+
+# Install
+cp runs/detect/train/weights/best.onnx assets/models/yolo_gpo.onnx
+```
+
+### Training Hardware
+
+| Hardware | Command | Time |
+|---------|---------|------|
+| NVIDIA GPU (CUDA) | `python scripts/train_yolo.py` | ~15-30 min |
+| CPU only | `python scripts/train_yolo.py --device cpu` | ~2-4 hours |
 
 **Why imgsz=640?** Player models at far range are small (20-50 pixels). 320px loses too much detail. 640px preserves enough detail for YOLO to detect at distance. This is the key difference from UI-element-only models.
 
 ## Step 6: Export to ONNX
 
-```bash
-yolo export model=runs/detect/train/weights/best.pt format=onnx imgsz=640 opset=11
-```
+> **Note:** The training script (Step 5) handles ONNX export automatically. If running manually:
+> `yolo export model=runs/detect/train/weights/best.pt format=onnx imgsz=640 opset=11`
 
 > **⚠️ CRITICAL:** Use `opset=11`. Default opset 12+ is incompatible with OpenCV's `cv2.dnn` ONNX runtime. This will silently fail at inference time.
 
@@ -188,5 +257,29 @@ These are defined in `YOLODetector.CONFIDENCE_THRESHOLDS`. Tune these after test
 
 ---
 
-*Phase: 08-yolo-detection*
+## Dataset Structure
+
+Images are saved to: `dataset_yolo/{class_name}/`
+Example:
+```
+dataset_yolo/enemy_player/img_1712345678901.png
+dataset_yolo/ultimate_bar/img_1712345679002.png
+```
+
+After splitting, LabelImg saves annotations as:
+```
+dataset_yolo/train/labels/enemy_player/img_xxx.txt
+dataset_yolo/val/labels/enemy_player/img_yyy.txt
+```
+
+Model backups are stored at:
+```
+assets/models/yolo_gpo.onnx          # Active model
+assets/models/yolo_gpo_backup_20260424_1430.onnx  # Timestamped backup
+```
+
+---
+
+## Phase: 08-yolo-detection + Phase 11-yolo-training
 *Created: 2026-04-24*
+*Phase 11 Updated: 2026-04-24*

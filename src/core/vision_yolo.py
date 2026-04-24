@@ -234,3 +234,236 @@ def get_yolo_enemy_detector():
     if _yolo_enemy_detector is None:
         _yolo_enemy_detector = YOLODetector()
     return _yolo_enemy_detector
+
+
+# ============================================================================
+# Phase 11: Dataset management and quality validation helpers
+# ============================================================================
+
+def get_dataset_stats(dataset_root: Optional[str] = None) -> dict:
+    """
+    Count images per class in the dataset folder.
+    Returns: {class_name: count}
+    """
+    import os
+    if dataset_root is None:
+        dataset_root = os.path.join(os.getcwd(), "dataset_yolo")
+
+    counts = {}
+    for class_id, class_name in YOLODetector.CLASS_NAMES.items():
+        class_dir = os.path.join(dataset_root, class_name)
+        if os.path.isdir(class_dir):
+            counts[class_name] = len([
+                f for f in os.listdir(class_dir)
+                if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+            ])
+        else:
+            counts[class_name] = 0
+    return counts
+
+
+def get_dataset_readiness(dataset_root: Optional[str] = None) -> dict:
+    """
+    Check dataset readiness against target counts.
+    Target counts from docs/YOLO_TRAINING.md:
+    - enemy_player: 300 (most critical)
+    - afk_cluster: 100
+    - UI elements: 30 each
+    """
+    import os
+    if dataset_root is None:
+        dataset_root = os.path.join(os.getcwd(), "dataset_yolo")
+
+    TARGETS = {
+        "enemy_player": 300,
+        "afk_cluster": 100,
+        "ultimate_bar": 30,
+        "solo_button": 30,
+        "br_mode_button": 30,
+        "return_to_lobby": 30,
+        "open_button": 30,
+        "continue_button": 30,
+        "combat_ready": 30,
+        "change_button": 30,
+    }
+
+    counts = get_dataset_stats(dataset_root)
+    readiness = {}
+    for class_name, target in TARGETS.items():
+        count = counts.get(class_name, 0)
+        pct = min(100, int(count / target * 100)) if target > 0 else 0
+        readiness[class_name] = {
+            "count": count,
+            "target": target,
+            "percent": pct,
+            "ready": count >= target,
+        }
+    return readiness
+
+
+def validate_model_on_dataset(
+    model_path: Optional[str] = None,
+    dataset_root: Optional[str] = None,
+    iou_threshold: float = 0.5,
+) -> dict:
+    """
+    Run YOLO validation on the dataset and return precision/recall per class.
+    Uses the val/ split if available, otherwise uses a sample of train/ images.
+    This runs inference on stored images (not real-time) so it's safe to call
+    from the backend during startup or on-demand.
+    """
+    import os
+    import time
+
+    if dataset_root is None:
+        dataset_root = os.path.join(os.getcwd(), "dataset_yolo")
+
+    det = YOLODetector(model_path=model_path)
+    if not det.is_available():
+        return {"error": "Model not available", "precision": 0.0}
+
+    # Find val/ or train/ split
+    val_dir = os.path.join(dataset_root, "val", "images")
+    if not os.path.isdir(val_dir):
+        val_dir = os.path.join(dataset_root, "train", "images")
+    if not os.path.isdir(val_dir):
+        return {"error": "No labeled dataset found", "precision": 0.0}
+
+    # Find corresponding labels dir
+    if "val" in val_dir:
+        label_base = val_dir.replace("val/images", "val/labels")
+    else:
+        label_base = val_dir.replace("train/images", "train/labels")
+
+    image_files = [
+        f for f in os.listdir(val_dir)
+        if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+    ]
+
+    if not image_files:
+        return {"error": "No images in validation set", "precision": 0.0}
+
+    # Sample up to 100 images for speed
+    import random
+    sample = random.sample(image_files, min(100, len(image_files)))
+
+    per_class_tp = {name: 0 for name in YOLODetector.CLASS_NAMES.values()}
+    per_class_fp = {name: 0 for name in YOLODetector.CLASS_NAMES.values()}
+    per_class_fn = {name: 0 for name in YOLODetector.CLASS_NAMES.values()}
+
+    start_time = time.time()
+
+    for img_file in sample:
+        img_path = os.path.join(val_dir, img_file)
+        label_path = os.path.join(label_base, os.path.splitext(img_file)[0] + ".txt")
+
+        try:
+            import cv2
+            img = cv2.imread(img_path)
+            if img is None:
+                continue
+
+            detections = det.detect(img)
+            gt_boxes = _parse_yolo_labels(label_path, img.shape[1], img.shape[0]) if os.path.exists(label_path) else []
+
+            for det_box in detections:
+                det_class_id, det_conf, det_box_px = det_box
+                matched = False
+                for gt_box in gt_boxes:
+                    gt_class_id, gt_cx, gt_cy, gt_w, gt_h = gt_box
+                    if det_class_id == gt_class_id:
+                        iou = _box_iou(det_box_px, (
+                            int(gt_cx * img.shape[1] - gt_w * img.shape[1] / 2),
+                            int(gt_cy * img.shape[0] - gt_h * img.shape[0] / 2),
+                            int(gt_w * img.shape[1]),
+                            int(gt_h * img.shape[0]),
+                        ))
+                        if iou >= iou_threshold:
+                            matched = True
+                            per_class_tp[YOLODetector.CLASS_NAMES[det_class_id]] += 1
+                            break
+                if not matched:
+                    per_class_fp[YOLODetector.CLASS_NAMES[det_class_id]] += 1
+
+            for gt_box in gt_boxes:
+                gt_class_id = gt_box[0]
+                class_name = YOLODetector.CLASS_NAMES[gt_class_id]
+                found = any(
+                    det_class_id == gt_class_id and
+                    _box_iou(det_box_px, (
+                        int(gt_box[1] * img.shape[1] - gt_box[3] * img.shape[1] / 2),
+                        int(gt_box[2] * img.shape[0] - gt_box[4] * img.shape[0] / 2),
+                        int(gt_box[3] * img.shape[1]),
+                        int(gt_box[4] * img.shape[0]),
+                    )) >= iou_threshold
+                    for det_box in detections
+                    for det_class_id, det_conf, det_box_px in [det_box]
+                )
+                if not found:
+                    per_class_fn[class_name] += 1
+
+        except Exception:
+            continue
+
+    elapsed = time.time() - start_time
+
+    # Compute per-class precision/recall
+    per_class_metrics = {}
+    total_tp = total_fp = total_fn = 0
+    for class_name in YOLODetector.CLASS_NAMES.values():
+        tp = per_class_tp[class_name]
+        fp = per_class_fp[class_name]
+        fn = per_class_fn[class_name]
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+        per_class_metrics[class_name] = {
+            "precision": round(precision, 3),
+            "recall": round(recall, 3),
+            "f1": round(f1, 3),
+            "tp": tp, "fp": fp, "fn": fn,
+        }
+        total_tp += tp
+        total_fp += fp
+        total_fn += fn
+
+    overall_precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
+    overall_recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
+    overall_f1 = 2 * overall_precision * overall_recall / (overall_precision + overall_recall) if (overall_precision + overall_recall) > 0 else 0.0
+
+    return {
+        "precision": round(overall_precision, 3),
+        "recall": round(overall_recall, 3),
+        "f1": round(overall_f1, 3),
+        "per_class": per_class_metrics,
+        "images_tested": len(sample),
+        "elapsed_sec": round(elapsed, 2),
+    }
+
+
+def _parse_yolo_labels(label_path: str, img_w: int, img_h: int) -> list:
+    """Parse YOLO format label file. Returns list of (class_id, cx, cy, w, h)."""
+    boxes = []
+    if os.path.exists(label_path):
+        with open(label_path) as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 5:
+                    boxes.append((int(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])))
+    return boxes
+
+
+def _box_iou(box1: tuple, box2: tuple) -> float:
+    """Compute IoU between two boxes in pixel coordinates (x, y, w, h)."""
+    x1, y1, w1, h1 = box1
+    x2, y2, w2, h2 = box2
+    xi1 = max(x1, x2)
+    yi1 = max(y1, y2)
+    xi2 = min(x1 + w1, x2 + w2)
+    yi2 = min(y1 + h1, y2 + h2)
+    inter = max(0, xi2 - xi1) * max(0, yi2 - yi1)
+    area1 = w1 * h1
+    area2 = w2 * h2
+    union = area1 + area2 - inter
+    return inter / union if union > 0 else 0.0
+
