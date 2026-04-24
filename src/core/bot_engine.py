@@ -108,6 +108,9 @@ class CombatStateMachine:
         self._situation_model: Optional[CombatSituationModel] = engine._situation_model
         # Phase 12.5: Movement policy reference
         self._movement_policy: Optional[MovementPolicy] = engine._movement_policy
+        # Phase 12.5.1: Throttle interval for YOLO scans in combat states
+        cfg_ai = engine.app.config.get("combat_ai", {})
+        self._yolo_throttle_interval = cfg_ai.get("yolo_scan_interval_sec", 0.6)
 
     @property
     def state_name(self):
@@ -199,62 +202,74 @@ class CombatStateMachine:
 
         action = self._execute_state(signals, now)
 
-        # Phase 12.5: Update target memory
-        try:
-            if self._target_memory is not None:
-                screen_region = self.engine.get_search_region()
-                screen_w = (screen_region[2] - screen_region[0]) if screen_region else 1920
-                screen_h = (screen_region[3] - screen_region[1]) if screen_region else 1080
-                screen_center = (screen_w / 2, screen_h / 2)
-                screen_size = (screen_w, screen_h)
+        # Phase 12.5: Update target memory (FIXED: single-update, real enemy count, ENGAGED YOLO)
+        # Phase 12.5.1: Restructured for Bug 2 (single update), Bug 3 (ENGAGED YOLO), Bug 4 (real count)
+        yolo_detections = []
+        screen_region = self.engine.get_search_region()
+        screen_w = (screen_region[2] - screen_region[0]) if screen_region else 1920
+        screen_h = (screen_region[3] - screen_region[1]) if screen_region else 1080
+        screen_center = (screen_w / 2, screen_h / 2)
+        screen_size = (screen_w, screen_h)
 
-                # Get YOLO detections for target memory
-                yolo_detections = []
-                if self.state == CombatState.SCANNING:
-                    yolo_result = self._yolo_scan_for_enemy()
-                    if yolo_result and "raw_detections" in yolo_result:
-                        yolo_detections = yolo_result.get("raw_detections", [])
+        # Phase 12.5.1: YOLO available in SCANNING + APPROACH + ENGAGED, throttled
+        if self.state in (CombatState.SCANNING, CombatState.APPROACH, CombatState.ENGAGED):
+            interval = getattr(self, '_yolo_throttle_interval', 0.6)
+            if now - self._last_yolo_scan_time >= interval:
+                yolo_result = self._yolo_scan_for_enemy()
+                if yolo_result and "raw_detections" in yolo_result:
+                    yolo_detections = yolo_result.get("raw_detections", [])
+                self._last_yolo_scan_time = now
 
-                target_decision = self._target_memory.update(
-                    yolo_detections=yolo_detections,
-                    signals=signals,
-                    screen_center=screen_center,
-                    screen_size=screen_size,
-                )
+        # Phase 12.5.1: Single update — keep object, don't call twice (Bug 2 fix)
+        target_decision = None
+        if self._target_memory is not None:
+            target_decision = self._target_memory.update(
+                yolo_detections=yolo_detections,
+                signals=signals,
+                screen_center=screen_center,
+                screen_size=screen_size,
+            )
 
-                action["target_memory"] = {
-                    "has_target": target_decision.has_target,
-                    "target_visible": target_decision.target_visible,
-                    "confidence_ema": target_decision.confidence_ema,
-                    "lost_ms": target_decision.lost_ms,
-                    "center_error_x": target_decision.center_error_x,
-                    "center_error_y": target_decision.center_error_y,
-                    "reason": target_decision.reason,
-                }
-        except Exception:
-            pass  # Non-fatal
+        # Serialize for telemetry dict (safe copy)
+        action["target_memory"] = {
+            "has_target": target_decision.has_target if target_decision else False,
+            "target_visible": target_decision.target_visible if target_decision else False,
+            "confidence_ema": target_decision.confidence_ema if target_decision else 0.0,
+            "lost_ms": target_decision.lost_ms if target_decision else 0.0,
+            "center_error_x": target_decision.center_error_x if target_decision else 0.0,
+            "center_error_y": target_decision.center_error_y if target_decision else 0.0,
+            "reason": target_decision.reason if target_decision else "",
+        }
+        # Phase 12.5.1: Store object for movement policy (Bug 6 fix)
+        action["_target_decision_obj"] = target_decision
 
-        # Phase 12.5: Compute combat situation
+        # Phase 12.5: Compute combat situation (FIXED: reuse target_decision, real enemy count)
+        # Phase 12.5.1: Bug 2 fix — use stored object instead of re-calling update
+        # Bug 4 fix — count actual YOLO detections
         try:
             if self._situation_model is not None:
-                # Re-call target_memory.update to get decision (idempotent)
-                target_dec = self._target_memory.update(
-                    yolo_detections=yolo_detections,
-                    signals=signals,
-                    screen_center=screen_center,
-                    screen_size=screen_size,
-                )
-                track = self._target_memory.get_track()
-                visible_count = 1 if track and track.bbox else 0
-                if signals.get("enemy_nearby") or signals.get("in_combat"):
-                    if visible_count == 0:
-                        visible_count = 1
+                # Phase 12.5.1: Count actual YOLO enemy detections (Bug 4 fix)
+                raw_enemy_count = len([d for d in yolo_detections if len(d) >= 3 and d[0] == 8])
+                if raw_enemy_count > 0:
+                    visible_count = raw_enemy_count
+                elif self._target_memory is not None:
+                    track = self._target_memory.get_track()
+                    if track is not None:
+                        # Phase 12.5.1: Decay — only count if seen within last 2s
+                        if (time.time() - track.last_seen_ts) < 2.0:
+                            visible_count = 1
+                        else:
+                            visible_count = 0
+                    else:
+                        visible_count = 0
+                else:
+                    visible_count = 0
 
                 situation = self._situation_model.assess(
                     signals=signals,
-                    target_decision=target_dec,
+                    target_decision=target_decision,  # Object, not dict (Bug 2 fix)
                     visible_enemy_count=visible_count,
-                    target_confidence_ema=getattr(target_dec, "confidence_ema", 0.0),
+                    target_confidence_ema=target_decision.confidence_ema if target_decision else 0.0,
                 )
 
                 action["situation"] = {
@@ -624,11 +639,26 @@ class BotEngine:
         self._check_combat_exit_conditions()
 
     def _execute_engaged_combat(self, action):
-        """ENGAGED state behavior: M1 spam + dodge."""
+        """ENGAGED state behavior: M1 spam + dodge. Phase 12.5.1: reposition/flee preempts M1."""
         cfg = self.app.config
         keys_cfg = cfg.get("keys", {})
         slot1_key = keys_cfg.get("slot_1", "1")
 
+        # Phase 12.5.1: Check intent BEFORE M1 burst — reposition/flee must not wait for clicks
+        intent = action.get("situation", {}).get("recommended_intent", "engage")
+        if intent in ("flee", "reposition"):
+            self.perform_dynamic_combat_movement(
+                [keys_cfg.get("forward", "w"),
+                 keys_cfg.get("left", "a"),
+                 keys_cfg.get("backward", "s"),
+                 keys_cfg.get("right", "d")],
+                bursts=1,
+                situation=action.get("situation"),
+                target_decision=action.get("_target_decision_obj"),  # Phase 12.5.1: object, not dict
+            )
+            return
+
+        # Phase 12.5.1: Only M1 when intent is engage or pursue
         if not self.ensure_melee_equipped(slot1_key):
             pydirectinput.press(slot1_key)
             self.sleep(0.3)
@@ -653,6 +683,7 @@ class BotEngine:
             self.sleep(random.uniform(0.15, 0.3))
             pydirectinput.keyUp(backward)
 
+        # Phase 12.5.1: Pass object for camera correction (Bug 6 fix)
         self.perform_dynamic_combat_movement(
             [keys_cfg.get("forward", "w"),
              keys_cfg.get("left", "a"),
@@ -660,7 +691,7 @@ class BotEngine:
              keys_cfg.get("right", "d")],
             bursts=random.randint(1, 2),
             situation=action.get("situation"),
-            target_decision=action.get("target_memory"),
+            target_decision=action.get("_target_decision_obj"),  # Phase 12.5.1: object, not dict
         )
 
     def _execute_fleeing(self, action):
@@ -1290,6 +1321,17 @@ class BotEngine:
             for key in reversed(active_keys):
                 pydirectinput.keyUp(key)
 
+    def _get_center_error_x(self, target_decision, default=0.0):
+        """
+        Extract center_error_x from a TargetDecision object or dict.
+        Phase 12.5.1: Both paths exist — use object when available.
+        """
+        if target_decision is None:
+            return default
+        if isinstance(target_decision, dict):
+            return float(target_decision.get("center_error_x", default))
+        return float(getattr(target_decision, "center_error_x", default))
+
     def perform_dynamic_combat_movement(self, move_keys, bursts=None, situation=None, target_decision=None):
         """
         Phase 12.5: Replaced body with scored movement policy.
@@ -1350,7 +1392,7 @@ class BotEngine:
                         if not self.hold_movement_keys(actual_keys, random.uniform(*action.duration_range)):
                             return False
 
-                    err_x = getattr(target_decision, "center_error_x", 0.0) if target_decision else 0.0
+                    err_x = self._get_center_error_x(target_decision)
                     if "camera_correct" in action.name:
                         if "left" in action.name:
                             pydirectinput.moveRel(-abs(int(err_x * 0.5)) if err_x < 0 else -50, 0)

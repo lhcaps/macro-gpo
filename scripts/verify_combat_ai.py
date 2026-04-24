@@ -82,29 +82,41 @@ def run_compile_tests() -> list[TestResult]:
         if not src_path.exists():
             results.append(TestResult(f"compile:{mod}", False, f"File not found: {src_path}"))
             continue
-        try:
-            subprocess.run(
-                [sys.executable, "-m", "py_compile", str(src_path)],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            results.append(TestResult(f"compile:{mod}", True))
-        except Exception as e:
-            results.append(TestResult(f"compile:{mod}", False, str(e)))
-
-    # Also compile bot_engine.py to catch wiring errors
-    bot_path = SRC_DIR / "core" / "bot_engine.py"
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "py_compile", str(bot_path)],
+        proc = subprocess.run(
+            [sys.executable, "-m", "py_compile", str(src_path)],
             capture_output=True,
             text=True,
             timeout=10,
         )
+        if proc.returncode == 0:
+            results.append(TestResult(f"compile:{mod}", True))
+        else:
+            results.append(
+                TestResult(
+                    f"compile:{mod}",
+                    False,
+                    proc.stderr or proc.stdout or "py_compile failed",
+                )
+            )
+
+    # Also compile bot_engine.py to catch wiring errors
+    bot_path = SRC_DIR / "core" / "bot_engine.py"
+    proc = subprocess.run(
+        [sys.executable, "-m", "py_compile", str(bot_path)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if proc.returncode == 0:
         results.append(TestResult("compile:bot_engine", True))
-    except Exception as e:
-        results.append(TestResult("compile:bot_engine", False, str(e)))
+    else:
+        results.append(
+            TestResult(
+                "compile:bot_engine",
+                False,
+                proc.stderr or proc.stdout or "py_compile failed",
+            )
+        )
 
     return results
 
@@ -337,6 +349,30 @@ def run_logic_tests() -> list[TestResult]:
             results.append(TestResult("logic:DeathClassifier.target_lost_death", True))
         else:
             results.append(TestResult("logic:DeathClassifier.target_lost_death", False, f"Expected target_lost_death, got {result4.reason}"))
+
+        # Phase 12.5.1: Zone death should fire even when in_combat == True (zone priority over combat)
+        ticks_zone = [{
+            "state": "ENGAGED",
+            "signals": {"in_combat": True, "hit_confirmed": False},
+            "risk": {"crowd_risk": 0.3, "visible_enemy_count": 1, "edge_risk": 0.80},
+            "target": {"lost_ms": 0},
+        }]
+        result_zone = classifier.classify(ticks_zone)
+        if result_zone.reason == "zone_death":
+            results.append(TestResult("logic:DeathClassifier.zone_death_before_combat", True))
+        else:
+            results.append(TestResult(
+                "logic:DeathClassifier.zone_death_before_combat",
+                False,
+                f"Expected zone_death when edge_risk=0.80+in_combat, got {result_zone.reason}",
+            ))
+
+        # Phase 12.5.1: stuck_death is in DeathReason type
+        from src.core.death_classifier import DeathReason
+        if "stuck_death" in DeathReason.__args__:
+            results.append(TestResult("logic:DeathClassifier.stuck_death_type", True))
+        else:
+            results.append(TestResult("logic:DeathClassifier.stuck_death_type", False, "stuck_death not in DeathReason"))
 
     except Exception as e:
         import traceback

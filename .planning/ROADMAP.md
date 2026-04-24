@@ -77,7 +77,7 @@ Plans:
 **Goal:** Build the core operator-facing controls: smart region selector, combat position picker, and structured Discord event system. This is NOT a Bridger clone — it is Zedsu's own product: a recoverable, screen-based GPO BR automation runtime that always keeps the operator informed about loop state, why it is stuck, what it tried, and what needs fixing.
 **Depends on:** Phase 11.5
 **Requirements**: OPER-36, OPER-37 (existing), new Phase 12 requirements TBD
-**Status**: 12.0 Complete; 12.1 Complete; 12.2 Complete; 12.3 Complete (hotfix applied); 12.4 Complete (2026-04-25); 12.5 Pending
+**Status**: 12.0 Complete; 12.1 Complete; 12.2 Complete; 12.3 Complete (hotfix applied); 12.4 Complete (2026-04-25); 12.5 Complete (2026-04-25); 12.5.1 Complete (2026-04-25)
 
 ### Phase 12.0: Contract Cleanup & Config Hygiene
 **Goal:** Fix 4 verified P0 issues remaining after Phase 11.5 before any feature work begins. These are silent runtime bugs that corrupt config persistence, leak secrets, and break region capture.
@@ -176,7 +176,7 @@ Exit criteria:
 **Goal:** Turn the current melee-loop bot into a measurable, survival-aware combat AI: records what happened, remembers targets, understands crowd risk, chooses movement by score instead of random, classifies why it died, preserves Phase 12.4 Discord events, and verifies the whole Phase 12 stack still works.
 **Depends on:** Phase 12.1, Phase 12.2, Phase 12.3, Phase 12.4
 **Requirements**: New combat AI requirements TBD
-**Status**: Pending
+**Status**: Complete (2026-04-25) — 7/7 plans complete, harness 57/57 PASS
 **Plans**: 7 plans
 Plans:
 - [ ] 12-5-00-PLAN.md — Phase 12 regression guard: py_compile all Phase 12 files, verify Discord event paths, check secret leak regression, verify config schema
@@ -196,6 +196,24 @@ Exit criteria:
 - match_end still sends duration + kills + screenshot
 - verify_combat_ai.py exits with code 0
 - Phase 12.1–12.4 smoke still passes
+
+### Phase 12.5.1: AI Runtime Wiring Hardening
+**Goal:** Fix 7 correctness bugs in Phase 12.5 runtime wiring. No new features. Harness compile returncode check, single-update target memory, YOLO feed in ENGAGED, real enemy count for crowd risk, reposition/flee preempts M1 burst, dict/object handling for camera correction, death classifier priority reorder.
+**Depends on:** Phase 12.5
+**Requirements**: None (bug fixes only)
+**Status**: Complete (2026-04-25) — 57/57 verification checks PASS
+**Plans**: 1 plan
+Plans:
+- [x] 12-5-1-PLAN.md — 7 wiring fixes: harness returncode, single-update memory, ENGAGED YOLO, real enemy count, M1 preemption, camera correction, death priority
+
+Exit criteria:
+- verify_combat_ai.py exits code 0 (57/57 PASS)
+- TargetMemory.update called once per tick
+- YOLO scan available in ENGAGED state
+- visible_enemy_count can be > 1
+- reposition/flee intent prevents M1 burst
+- camera correction uses real center_error_x
+- zone_death checked before combat_death
 
 ### Phase 13: Tauri Operator Shell: Tray, Settings, HUD Placement
 **Goal:** Complete the v3 operator shell — Tauri tray with state colors, dynamic HUD positioning, Settings surface. Not a UI redesign; a completion of the shell around the v3 architecture.
@@ -315,7 +333,7 @@ Plans:
 
 **Execution Order:**
 v2: Phases 1-5 → 8 → 6 → 7 (all complete)
-v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 → 12.5 → 13 → 14 → 15 → 16 → 17 → 18 → 19
+v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 → 12.5 → 12.5.1 → 13 → 14 → 15 → 16 → 17 → 18 → 19
 
 | Phase | Plans | Status | Completed |
 |-------|-------|--------|-----------|
@@ -336,7 +354,8 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.2 Smart Region Selector | 2/2 | Complete | 2026-04-24 |
 | 12.3 Combat Position Picker | 3/3 | Complete (hotfix 2026-04-25) | 2026-04-25 |
 | 12.4 Discord Event System | 2/2 | Complete | 2026-04-25 |
-| 12.5 Combat AI Foundation | 7/7 | Pending | — |
+| 12.5 Combat AI Foundation | 7/7 | Complete | 2026-04-25 |
+| 12.5.1 AI Wiring Hardening | 1/1 | Complete | 2026-04-25 |
 | 13. Tauri Operator Shell | 3/3 | Pending | — |
 | 14. Real Production Build | 4/4 | Pending | — |
 | 15. Replay Benchmark | 3/3 | Pending | — |

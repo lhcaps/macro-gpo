@@ -5,8 +5,8 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12.5 — Combat AI Intelligence Foundation
-Active subphase: Phase 12.4 complete (2/2 plans); Phase 12.5 plans ready (7 plans)
+**Current focus:** Phase 12.5.1 — AI Runtime Wiring Hardening (7 bug fixes, 57/57 PASS)
+Active subphase: Phase 12.5.1 complete; Phase 13 next
 
 ## Current Position
 
@@ -273,3 +273,26 @@ Build order: telemetry → target memory → situation model → scored movement
 No combos, no FSM rewrite, no exploit/memory reading.
 
 **Next:** Execute Phase 12.5 starting with 12-5-00 regression guard
+
+## Session Continuity (2026-04-25 — Phase 12.5.1: AI Runtime Wiring Hardening)
+
+Phase 12.5.1 executed end-to-end: discuss → plan → execute → verify.
+
+7 bugs fixed across 3 files:
+
+| # | Bug | Fix |
+|---|------|------|
+| 1 | Harness compile returncode not checked | Check `proc.returncode == 0`, append FAIL on non-zero |
+| 2 | `TargetMemory.update()` called twice per tick | Single update, store object as `_target_decision_obj`, reuse for situation model |
+| 3 | YOLO only fed in SCANNING, not ENGAGED | Extend to SCANNING+APPROACH+ENGAGED, throttle 0.6s |
+| 4 | `visible_enemy_count` capped at 0/1 | Count raw YOLO detections, fallback with 2s decay |
+| 5 | `reposition`/`flee` can't preempt M1 | Check intent BEFORE M1 loop, call movement and return immediately |
+| 6 | `getattr` on dict always returns 0.0 | Pass `TargetDecision` object via `_target_decision_obj`, use `_get_center_error_x` helper |
+| 7 | `combat_death` checked before `zone_death` | Reorder: zone_death before combat_death |
+
+Modified files: `bot_engine.py`, `verify_combat_ai.py`, `death_classifier.py`
+New tests: `zone_death_before_combat`, `stuck_death_type`
+
+Verification: 57/57 PASS
+
+**Next:** Phase 13 (Tauri Operator Shell) or Phase 12.5 post-execution review

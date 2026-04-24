@@ -179,21 +179,22 @@ class DeathClassifier:
             confidence = min(1.0, 0.5 + crowd_risk * 0.5)
             return "crowd_death", confidence, breakdown
 
-        # Rule 2: Combat death — died in a fight (not necessarily crowd)
-        if in_combat or hit_confirmed:
-            breakdown["rule_matched"] = "combat_death"
-            confidence = 0.7 if in_combat else 0.5
-            return "combat_death", confidence, breakdown
-
-        # Rule 3: Zone death — edge/zone hazard damage
+        # Phase 12.5.1: Rule 2 — Zone death — check BEFORE combat_death
+        # Zone deaths can occur while in_combat (e.g., storm damage while fighting)
+        # so zone must be checked before the catch-all combat_death rule
         if edge_risk >= self.EDGE_RISK_DEATH_THRESHOLD:
             breakdown["rule_matched"] = "zone_death"
             confidence = 0.6
             return "zone_death", confidence, breakdown
 
-        # Rule 4: Stuck death — bot stuck and couldn't act (placeholder for now)
-        # This would need a "stuck_score" in risk dict, which plan 03 doesn't produce yet
-        # Placeholder: return unknown until stuck detection is added
+        # Rule 3: Combat death — died in a fight (not crowd, not zone)
+        if in_combat or hit_confirmed:
+            breakdown["rule_matched"] = "combat_death"
+            confidence = 0.7 if in_combat else 0.5
+            return "combat_death", confidence, breakdown
+
+        # Rule 4: Stuck death — bot stuck and couldn't act (placeholder for future)
+        # Needs a "stuck_score" in risk dict — not yet produced by situation model
         # if stuck_score >= self.STUCK_SCORE_DEATH_THRESHOLD:
         #     breakdown["rule_matched"] = "stuck_death"
         #     return "stuck_death", 0.6, breakdown
