@@ -943,6 +943,85 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                     }
                 })
 
+            # Phase 12.2: Smart region selector — drag-to-select overlay
+            elif action == "select_region":
+                # Clean separation: overlay thread runs UI only; HTTP handler owns result processing.
+                from src.utils.windows import get_window_rect
+                from src.utils.config import save_config, load_config
+                from src.services.region_service import set_region
+                from src.overlays.region_selector import RegionSelectorOverlay
+
+                payload_data = data.get("payload", {})
+                region_name = payload_data.get("name", "combat_scan")
+
+                window_title = _app_config.get("game_window_title", "")
+                if not window_title:
+                    self._send_json({"status": "error", "message": "No game_window_title configured"}, 400)
+                    return
+
+                rect = get_window_rect(window_title)
+                if rect is None:
+                    self._send_json({"status": "error", "message": f"Window not found: {window_title}"}, 404)
+                    return
+
+                _backend_log.info(f"[SELECT_REGION] Starting overlay for region=%s window=%s", region_name, window_title)
+
+                # Overlay thread: ONLY calls overlay.run() — does NOT mutate config
+                overlay = RegionSelectorOverlay(window_title, region_name)
+
+                def _run_overlay():
+                    try:
+                        overlay.run()
+                    except Exception as e:
+                        _backend_log.error(f"[SELECT_REGION] Overlay thread error: {e}")
+
+                # NON-daemon thread so HTTP handler can join() it
+                overlay_thread = threading.Thread(target=_run_overlay, name="RegionSelector")
+                overlay_thread.start()
+
+                # HTTP handler blocks here until overlay closes
+                result = overlay.get_result(timeout=300.0)  # 5 min max
+                overlay_thread.join(timeout=10.0)
+
+                # -- HTTP handler owns ALL result processing below this line --
+
+                if result is None:
+                    # Timeout
+                    self._send_json({"status": "error", "message": "Region selection timed out"}, 408)
+                    return
+
+                action_type = result.get("action")
+
+                if action_type == "error":
+                    # Window not found (set inside overlay thread)
+                    self._send_json({"status": "error", "message": result.get("message", "Unknown error")}, 500)
+                    return
+
+                if action_type == "cancel":
+                    _backend_log.info("[SELECT_REGION] Region selection cancelled")
+                    self._send_json({"status": "cancelled", "message": "Region selection cancelled"})
+                    return
+
+                if action_type == "confirm":
+                    area = result.get("area", [])
+                    if not area:
+                        _backend_log.warning("[SELECT_REGION] No area in confirm result")
+                        self._send_json({"status": "error", "message": "No area selected"}, 400)
+                        return
+
+                    # Config mutation ONLY in HTTP handler thread (no nested scope issues)
+                    success, err = set_region(_app_config, region_name, area, kind="generic")
+                    if not success:
+                        _backend_log.error(f"[SELECT_REGION] set_region failed: {err}")
+                        self._send_json({"status": "error", "message": f"set_region failed: {err}"}, 400)
+                        return
+
+                    save_config(_app_config)
+                    _app_config = load_config()
+                    _backend_log.info(f"[SELECT_REGION] Region saved: {region_name} area={area}")
+                    self._send_json({"status": "ok", "region": region_name, "area": area})
+                    return
+
             else:
                 self._send_json({"error": f"Unknown action: {action}"}, 400)
 
