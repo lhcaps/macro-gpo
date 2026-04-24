@@ -202,7 +202,76 @@ DEFAULT_CONFIG = {
     "detection_backend": "auto",
     "combat_regions": DEFAULT_COMBAT_REGIONS,
     "combat_settings": DEFAULT_COMBAT_SETTINGS,
+    # D-11.5k-01: Phase 12 config additions
+    "combat_regions_v2": {},   # Phase 12 region selector schema
+    "combat_positions": {},    # Phase 12 position picker schema
+    "discord_events": {        # Phase 12 advanced webhook config
+        "enabled": False,
+        "webhook_url": "",
+        "events": {
+            "match_end": True,
+            "kill_milestone": True,
+            "combat_start": False,
+            "death": True,
+            "bot_error": True,
+        },
+        "kill_milestones": [5, 10, 20],
+    },
 }
+
+
+# D-11.5k-02: Migration helper — converts legacy combat_regions to combat_regions_v2 format
+def migrate_combat_regions(config: dict) -> dict:
+    """
+    Migrate legacy combat_regions (Phase 5-11 format) to combat_regions_v2 (Phase 12 format).
+
+    Legacy format:  {"green_hp_bar": {"x_ratio": 0.30, "y_ratio": 0.25, "w_ratio": 0.40, "h_ratio": 0.35}}
+    V2 format:      {"green_hp_bar": {"area": [x1, y1, x2, y2], "enabled": true, "kind": "...", "threshold": 0.004}}
+
+    IMPORTANT: V2 uses NORMALIZED coordinates [0-1] — NOT pixel values.
+    The area [x1, y1, x2, y2] are ratios relative to window size, same as the legacy ratios.
+    This preserves cross-machine portability.
+
+    This helper reads the legacy regions and produces v2 equivalents.
+    Call at config load time to migrate existing configs.
+    """
+    legacy = config.get("combat_regions", {})
+    if not legacy or config.get("combat_regions_v2"):
+        return config  # Already migrated or nothing to migrate
+
+    v2_regions = {}
+    threshold_map = {
+        "green_hp_bar": ("green_threshold", "hsv_green"),
+        "red_dmg_numbers": ("red_threshold", "hsv_red"),
+        "player_hp_bar": ("green_threshold", "hsv_green"),
+        "incombat_timer": ("white_threshold", "hsv_white"),
+        "kill_icon": ("white_threshold", "hsv_white"),
+    }
+
+    for name, region in legacy.items():
+        if not region.get("enabled", True):
+            continue
+        x_ratio = float(region.get("x_ratio", 0))
+        y_ratio = float(region.get("y_ratio", 0))
+        w_ratio = float(region.get("w_ratio", 0))
+        h_ratio = float(region.get("h_ratio", 0))
+        threshold_key, kind = threshold_map.get(name, (f"{name}_threshold", "generic"))
+        threshold = float(region.get(threshold_key, 0.004))
+
+        # D-11.5k-02: NORMALIZED area — [x1, y1, x2, y2] in 0-1 range
+        # x2 = x1 + w_ratio, y2 = y1 + h_ratio
+        area = [x_ratio, y_ratio, x_ratio + w_ratio, y_ratio + h_ratio]
+
+        v2_regions[name] = {
+            "area": area,              # NORMALIZED [0-1], NOT pixel
+            "enabled": True,
+            "kind": kind,
+            "threshold": threshold,
+            "migrated_from": "combat_regions",
+        }
+
+    config["combat_regions_v2"] = v2_regions
+    return config
 
 
 def _deep_merge(base, override):

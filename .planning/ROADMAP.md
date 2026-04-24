@@ -66,12 +66,12 @@ Plans:
 **Goal:** Lock the 3-tier contract before Phase 12 adds features. Fix 11 verified blockers: frontend/backend command mismatch (F1/F3), /health semantics, /state.hud canonical format, backend auto-start, ThreadingHTTPServer, find_and_click signature, click_saved_coordinate import, requirements.txt, YOLO parser/NMS, validation recursive dataset, and config schema. All blockers verified against source code.
 **Depends on**: Phase 9, Phase 10
 **Requirements**: New hardening requirements TBD
-**Status**: Plans complete
+**Status**: Complete
 **Plans**: 3 plans
 Plans:
-- [ ] 11-5-01-PLAN.md — Wave 1: Backend Contract Core (toggle, emergency_stop, safe_find_and_click, click_saved_coordinate, no auto-start)
-- [ ] 11-5-02-PLAN.md — Wave 2: State Contract + HTTP Server (/health, /state.hud, ThreadingHTTPServer, requirements.txt)
-- [ ] 11-5-03-PLAN.md — Wave 3: Vision + Config (YOLO parser/NMS, recursive validation, config schema v2)
+- [x] 11-5-01-PLAN.md — Wave 1: Backend Contract Core (toggle, emergency_stop, safe_find_and_click, click_saved_coordinate, no auto-start)
+- [x] 11-5-02-PLAN.md — Wave 2: State Contract + HTTP Server (/health, /state.hud, ThreadingHTTPServer, requirements.txt)
+- [x] 11-5-03-PLAN.md — Wave 3: Vision + Config (YOLO parser/NMS, recursive validation, config schema v2)
 
 ### Phase 12: ZedsuBackend Feature Parity
 **Goal:** Bring 3 key capabilities from BridgerBackend into ZedsuBackend: Smart Region Selector (drag-to-select, F6 hotkey), Advanced Discord Webhook (base64 screenshots, 5 event types, UI toggle tab), Combat Position Picker (click-to-capture, named positions).
@@ -113,7 +113,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12 → 13 → 14
 | 9. 3-Tier Architecture | 3/3 | Complete | 2026-04-24 |
 | 10. Rust/Tauri GUI | 4/4 | Complete | 2026-04-24 |
 | 11. YOLO Training Integration | 3/3 | Complete | 2026-04-24 |
-| 11.5 Contract Hardening | 0/0 | Pending | — |
+| 11.5 Contract Hardening | 3/3 | Complete | 2026-04-24 |
 | 12. Backend Feature Parity | 0/0 | Discuss done | — |
 | 13. System Tray v3 | 0/0 | Pending | — |
 | 14. Production Build | 0/0 | Pending | — |

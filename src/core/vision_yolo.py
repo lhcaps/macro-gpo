@@ -141,32 +141,46 @@ class YOLODetector:
             if len(outputs) == 0:
                 return []
 
+            # D-11.5i-01: Handle YOLOv8/YOLO11 ONNX output shapes.
+            # Common shapes: (1, 84, 8400), (1, 14, 8400), (84, 8400), (14, 8400)
+            # YOLOv8 format: (batch, features, predictions) -> transpose -> (predictions, features)
+            # YOLO11 format: (1, num_classes + 4, num_predictions)
             output = outputs[0]
 
-            # Handle different YOLO output shapes
-            if output.shape[0] == 84:  # [84, 8400] -> transpose
+            # D-11.5i-01: Handle batch dimension correctly
+            if len(output.shape) == 3:
+                # Shape is (batch, features, predictions) — squeeze batch dim
+                output = np.squeeze(output, axis=0)  # -> (features, predictions)
+
+            # After squeeze: handle (84, 8400) or (14, 8400)
+            # 84 features = 80 classes + 4 coords (for COCO-style)
+            # 14 features = 10 classes + 4 coords (for custom 10-class model)
+            if output.shape[0] not in (14, 84):
+                # Transpose if first dim is predictions (wrong orientation)
                 output = output.T
 
-            results = []
+            # D-11.5i-02: Non-Maximum Suppression (NMS) parameters
+            score_threshold = 0.25
+            nms_threshold = 0.45
+
+            # Build bboxes and scores for NMS
+            boxes_for_nms = []
+            scores_for_nms = []
+            class_ids_for_nms = []
+
             for detection in output:
                 if len(detection) < 5:
                     continue
 
                 # Get confidence and class
-                if len(detection) == 85:
-                    obj_conf = float(detection[4])
-                    class_scores = detection[5:]
-                elif len(detection) == 84:
-                    obj_conf = float(detection[4])
-                    class_scores = detection[5:]
-                else:
-                    obj_conf = float(detection[4]) if detection.shape[0] > 4 else 0.5
-                    class_scores = detection[5:]
-
+                class_scores = detection[4:]  # All after the 4 coords
+                if len(class_scores) == 0:
+                    continue
                 class_id = int(np.argmax(class_scores))
+                obj_conf = float(detection[4]) if len(detection) > 4 else 0.5
                 confidence = obj_conf * class_scores[class_id]
 
-                # Get per-class threshold (D-28)
+                # Per-class threshold
                 class_name = self.get_class_name(class_id)
                 conf_threshold = self.CONFIDENCE_THRESHOLDS.get(class_name, self.default_confidence)
 
@@ -178,10 +192,7 @@ class YOLODetector:
                     continue
 
                 # Box coordinates (center_x, center_y, w, h) — normalized
-                if len(detection) >= 4:
-                    cx, cy, w, h = detection[0], detection[1], detection[2], detection[3]
-                else:
-                    continue
+                cx, cy, w, h = float(detection[0]), float(detection[1]), float(detection[2]), float(detection[3])
 
                 # Convert to pixel coordinates
                 img_h, img_w = haystack_bgr.shape[:2]
@@ -190,9 +201,21 @@ class YOLODetector:
                 w_px = int(w * img_w)
                 h_px = int(h * img_h)
 
-                results.append((class_id, float(confidence), (x, y, w_px, h_px)))
+                boxes_for_nms.append([x, y, w_px, h_px])
+                scores_for_nms.append(float(confidence))
+                class_ids_for_nms.append(class_id)
 
-            return results
+            # D-11.5i-02: Apply NMS using cv2.dnn.NMSBoxes
+            if boxes_for_nms:
+                indices = cv2.dnn.NMSBoxes(boxes_for_nms, scores_for_nms, score_threshold, nms_threshold)
+
+                results = []
+                if len(indices) > 0:
+                    for idx in indices.flatten():
+                        results.append((class_ids_for_nms[idx], scores_for_nms[idx], tuple(boxes_for_nms[idx])))
+                return results
+
+            return []
 
         except Exception as e:
             logger.error(f"YOLO detection error: {e}")
@@ -319,30 +342,32 @@ def validate_model_on_dataset(
     if not det.is_available():
         return {"error": "Model not available", "precision": 0.0}
 
-    # Find val/ or train/ split
-    val_dir = os.path.join(dataset_root, "val", "images")
-    if not os.path.isdir(val_dir):
-        val_dir = os.path.join(dataset_root, "train", "images")
-    if not os.path.isdir(val_dir):
-        return {"error": "No labeled dataset found", "precision": 0.0}
+    # D-11.5j-01: Find val/ or train/ split
+    split_root = os.path.join(dataset_root, "val")
+    images_subdir = "images"
+    if not os.path.isdir(os.path.join(split_root, images_subdir)):
+        split_root = os.path.join(dataset_root, "train")
+        if not os.path.isdir(os.path.join(split_root, images_subdir)):
+            return {"error": "No labeled dataset found", "precision": 0.0}
 
-    # Find corresponding labels dir
-    if "val" in val_dir:
-        label_base = val_dir.replace("val/images", "val/labels")
-    else:
-        label_base = val_dir.replace("train/images", "train/labels")
+    images_base = os.path.join(split_root, images_subdir)  # e.g., dataset_yolo/val/images
+    labels_base = os.path.join(split_root, "labels")       # e.g., dataset_yolo/val/labels
 
-    image_files = [
-        f for f in os.listdir(val_dir)
-        if f.lower().endswith(('.png', '.jpg', '.jpeg'))
-    ]
+    # D-11.5j-01: Recursive glob preserves subdirectory structure.
+    # e.g., images/enemy_player/foo.png -> resolve label to labels/enemy_player/foo.txt
+    import glob
+    all_image_paths = (
+        glob.glob(os.path.join(images_base, "**/*.png"), recursive=True)
+        + glob.glob(os.path.join(images_base, "**/*.jpg"), recursive=True)
+        + glob.glob(os.path.join(images_base, "**/*.jpeg"), recursive=True)
+    )
 
-    if not image_files:
+    if not all_image_paths:
         return {"error": "No images in validation set", "precision": 0.0}
 
     # Sample up to 100 images for speed
     import random
-    sample = random.sample(image_files, min(100, len(image_files)))
+    sample = random.sample(all_image_paths, min(100, len(all_image_paths)))
 
     per_class_tp = {name: 0 for name in YOLODetector.CLASS_NAMES.values()}
     per_class_fp = {name: 0 for name in YOLODetector.CLASS_NAMES.values()}
@@ -350,9 +375,13 @@ def validate_model_on_dataset(
 
     start_time = time.time()
 
-    for img_file in sample:
-        img_path = os.path.join(val_dir, img_file)
-        label_path = os.path.join(label_base, os.path.splitext(img_file)[0] + ".txt")
+    for img_path in sample:
+        # D-11.5j-01: Resolve label path using the SAME relative subpath.
+        # e.g., /abs/path/dataset_yolo/val/images/enemy_player/foo.png
+        #        -> /abs/path/dataset_yolo/val/labels/enemy_player/foo.txt
+        rel_path = os.path.relpath(img_path, images_base)       # "enemy_player/foo.png"
+        label_rel = os.path.splitext(rel_path)[0] + ".txt"      # "enemy_player/foo.txt"
+        label_path = os.path.join(labels_base, label_rel)        # full path to label
 
         try:
             import cv2

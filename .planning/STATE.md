@@ -4,17 +4,17 @@
 
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
-**Core value:** Fast, intelligent, real-combat macro with 3-tier architecture and modern Rust/Tauri GUI.
-**Current focus:** Phase 12 — ZedsuBackend Feature Parity (discuss complete, ready for planning)
+**Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
+**Current focus:** Phase 11.5 — Contract & Runtime Hardening (plan pending)
 
 ## Current Position
 
-Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-11 complete, Phase 12 in progress)
-Phase: 12 (ZedsuBackend Feature Parity)
-Status: Context gathered — 3 features scoped: Region Selector, Discord Webhook, Position Picker
-Next: $gsd-plan-phase 12
+Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-11 complete, Phase 11.5 planning in progress)
+Phase: 11.5 (Contract & Runtime Hardening)
+Status: COMPLETE — 3/3 plans executed, all 23 must-haves verified pass
+Next: Phase 12 — ZedsuBackend Feature Parity
 
-Progress: [▓▓▓▓▓▓░░░░] v2 complete, v3 Phase 9-11 complete, Phase 12 discuss done
+Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-11.5 complete, Phase 12 ready for planning
 
 ## Accumulated Context
 
@@ -82,6 +82,29 @@ Progress: [▓▓▓▓▓▓░░░░] v2 complete, v3 Phase 9-11 complete, 
 - Advanced Discord Webhook: inline base64 screenshot (no temp file), 5 event types (match_end, kill_milestone, combat_start, death, bot_error), UI toggle tab in Settings, keep send_discord() utility
 - Combat Position Picker: multiple named positions, single-click overlay, relative coords [0-1], Settings UI only, stored in `combat_positions: {name: {x,y}}`
 
+### Decisions (Milestone v3 — Phase 11.5)
+
+- Phase 11.5 inserted before Phase 12 due to 11 verified blockers from brutal code review
+- Frontend F1/F3 commands must match backend: F1=emergency_stop, F3=toggle
+- Backend must implement: toggle, emergency_stop, update_config, get_config commands
+- /health returns "ok" when process alive, not when bot running
+- /state exposes canonical "hud" object: {combat_state, kills, match_count, detection_ms, elapsed_sec, status_color}
+- Frontend reads only state.hud, not nested combat/stats paths
+- Backend does NOT auto-start core on launch — idle until command start received
+- ZedsuHTTPServer uses real ThreadingHTTPServer from http.server
+- BackendCallbacks.safe_find_and_click signature must match vision.find_and_click
+- BackendCallbacks.click_saved_coordinate must import locate_image correctly
+- requirements.txt must include mss and numpy runtime dependencies
+- YOLO ONNX parser handles batch dimension and includes NMS
+- validate_model_on_dataset reads recursive dataset directories
+- Config schema Phase 12 adds combat_regions_v2/combat_positions/discord_events without breaking legacy schema
+
+### Decisions (Milestone v3 — Phase 13+)
+
+- System tray v3: Tauri-native tray with 4 state colors (Gray/Green/Yellow/Red)
+- Tray menu maps directly to backend commands
+- Production build: separate ZedsuFrontend.exe + ZedsuBackend.exe + config.json layout
+
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
@@ -111,3 +134,9 @@ Progress: [▓▓▓▓▓▓░░░░] v2 complete, v3 Phase 9-11 complete, 
 Last session: 2026-04-24
 Stopped at: Phase 12 (ZedsuBackend Feature Parity) discuss-phase complete
 Resume file: .planning/phases/12-backend-parity/12-CONTEXT.md
+
+## Session Continuity (2026-04-24)
+
+After Phase 12 discuss-phase, a brutal code review identified **11 blockers** that must be fixed before Phase 12 feature work. All blockers verified against source code. Root cause: contract mismatch between frontend/backend/core tiers + runtime safety gaps.
+
+Next action: Insert Phase 11.5 before Phase 12 to harden the v3 stack contract. Phase 12 deferred until Phase 11.5 complete.
