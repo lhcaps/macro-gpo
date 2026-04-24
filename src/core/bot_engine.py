@@ -43,6 +43,7 @@ from src.core.target_memory import TargetMemory, TargetDecision
 from src.core.combat_situation import CombatSituationModel, CombatSituation, Intent
 # Phase 12.5: Movement policy
 from src.core.movement_policy import MovementPolicy, ScoredAction, MovementAction
+from src.core.death_classifier import DeathClassifier, DeathClassification
 
 
 # ============================================================
@@ -543,6 +544,8 @@ class BotEngine:
         self._situation_model = CombatSituationModel(getattr(app, 'config', {}))
         # Phase 12.5: Movement policy
         self._movement_policy = MovementPolicy(getattr(app, 'config', {}))
+        # Phase 12.5: Death classifier
+        self._death_classifier = DeathClassifier(getattr(app, 'config', {}))
 
     def start(self):
         self.stop_requested = False
@@ -780,6 +783,35 @@ class BotEngine:
                         "right": raw_region[2],
                         "bottom": raw_region[3],
                     }
+
+                # Phase 12.5: Classify death reason from telemetry
+                death_reason = "unknown"
+                death_confidence = 0.0
+                death_meta = {}
+                try:
+                    if hasattr(self, '_death_classifier') and self._death_classifier:
+                        last_ticks = self._telemetry.get_last_ticks(20)
+                        if last_ticks:
+                            cls_result = self._death_classifier.classify(last_ticks)
+                            death_reason = cls_result.reason
+                            death_confidence = cls_result.confidence
+                            death_meta = {
+                                "death_reason": cls_result.reason,
+                                "death_confidence": cls_result.confidence,
+                                "last_state": cls_result.last_state,
+                                "crowd_risk": cls_result.crowd_risk,
+                                "visible_enemy_count": cls_result.visible_enemy_count,
+                                "target_lost_ms": cls_result.target_lost_ms,
+                                "player_hp_low": cls_result.player_hp_low,
+                                "classification_breakdown": cls_result.metadata,
+                            }
+                        else:
+                            death_meta = {"death_reason": "unknown", "no_telemetry": True}
+                    else:
+                        death_meta = {"death_reason": "unknown", "classifier_disabled": True}
+                except Exception:
+                    death_meta = {"death_reason": "unknown", "classifier_error": True}
+
                 self._callbacks.emit_event(
                     "death",
                     title=f"You Died — Match #{self.app.match_count}",
@@ -788,13 +820,12 @@ class BotEngine:
                     include_screenshot=True,
                     metadata={
                         "screenshot_region": region,
-                        # Phase 12.5: Attach last known context from telemetry
-                        "last_state": "unknown",
-                        "last_signals": {},
-                        "last_risk": {},
+                        "death_reason": death_reason,
+                        "death_confidence": death_confidence,
+                        **death_meta,
                     },
                 )
-                self.log(f"[COMBAT] Death event dispatched (source: {source}).")
+                self.log(f"[COMBAT] Death event dispatched (source: {source}, reason: {death_reason}).")
         except Exception:
             pass  # Death event failures do not interrupt spectating watch
 
@@ -1851,7 +1882,17 @@ class BotEngine:
                 self.log(f"Discord match_end event dispatched (match #{self.app.match_count}).")
                 notification_sent = True
 
-                # Phase 12.5: Finish telemetry
+                # Phase 12.5: Finish telemetry + death classification
+                death_reason = "unknown"
+                try:
+                    if hasattr(self, '_death_classifier') and self._death_classifier and hasattr(self, '_telemetry'):
+                        last_ticks = self._telemetry.get_last_ticks(20)
+                        if last_ticks:
+                            cls_result = self._death_classifier.classify(last_ticks)
+                            death_reason = cls_result.reason
+                except Exception:
+                    pass
+
                 try:
                     summary = MatchSummary(
                         match_id=self.app.match_count,
@@ -1859,6 +1900,7 @@ class BotEngine:
                         ended_at=time.time(),
                         duration_sec=max(0, min(3600, int(time.time() - self.match_start_time))),
                         kills=kills,
+                        death_reason=death_reason,
                         exit_state=self._combat_sm.state.name if self._combat_sm else "unknown",
                     )
                     self._telemetry.finish_match(summary)
