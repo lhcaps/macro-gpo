@@ -134,10 +134,13 @@ Criteria: `combat_regions_v2` exists and contains migrated region data when lega
 
 ## Status
 
-- [ ] V1: Syntax check
-- [ ] V2: /state secret leak check
-- [ ] V3: update_config response sanitized
-- [ ] V4: reload_config response sanitized
-- [ ] V5: Config persistence verified
-- [ ] V6: get_search_region MSS dict verified
-- [ ] V7: Migration auto-populates v2 regions
+- [x] V1: Syntax check — PASS (backend.py + config.py compile with exit 0)
+- [x] V2: /state secret leak check — PASS (discord_webhook, discord_webhook_url, discord_events.webhook_url all absent; has_webhook present)
+- [x] V3: update_config response sanitized — PASS (no webhook secrets; has_webhook present; status ok)
+- [x] V4: reload_config response sanitized — PASS (no webhook secrets; has_webhook present; status ok)
+- [x] V5: Config persistence verified — PASS (update_config persisted to config.json; survives reload)
+- [x] V6: get_search_region MSS dict verified — N/A (endpoint not yet implemented; will be added in Phase 12.1 Region Service Layer)
+- [x] V7: Migration auto-populates v2 regions — PASS (5 legacy regions migrated: green_hp_bar, red_dmg_numbers, player_hp_bar, incombat_timer, kill_icon → combat_regions_v2)
+
+**Verification date:** 2026-04-24
+**Result:** 6/7 applicable checks PASS. V6 deferred to Phase 12.1.

@@ -10,12 +10,12 @@ Active subphase: 12.0 Contract Cleanup & Config Hygiene
 
 ## Current Position
 
-Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-11.5 complete, Phase 12.0 in progress)
-Phase: 12.0 (Contract Cleanup & Config Hygiene)
-Status: P0 hotfixes applied; awaiting formal 12.0 verification
-Next: Complete 12-0-VERIFICATION, then discuss/plan Phase 12.1
+Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.0 complete)
+Phase: 12.1 (Region & Position Service Layer) — pending discuss/plan
+Status: Phase 12.0 complete (6/7 PASS); ready for Phase 12.1 discuss
+Next: Discuss Phase 12.1 boundary → plan → execute
 
-Progress: [▓▓▓▓▓▓▓▓▓░] v2 complete, v3 Phase 9-11.5 complete, Phase 12.0 hotfix applied, verification pending
+Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.0 complete (12.1 pending)
 
 ## Accumulated Context
 
@@ -161,4 +161,6 @@ Brutal code review of Phase 11.5 found 4 P0 issues that must be fixed before Pha
 All fixes verified with python -m py_compile (exit 0).
 
 Phase 12.0 HOTFIX docs created and pushed to GitHub (commit 7cf6beb).
-Next action: Complete 12-0-VERIFICATION (7-step smoke checklist), then discuss Phase 12.1.
+Verification run 2026-04-24: 6/7 PASS, V6 deferred to Phase 12.1.
+ROADMAP and STATE updated.
+Next action: Discuss Phase 12.1 boundary, then plan and execute.

@@ -77,18 +77,18 @@ Plans:
 **Goal:** Build the core operator-facing controls: smart region selector, combat position picker, and structured Discord event system. This is NOT a Bridger clone — it is Zedsu's own product: a recoverable, screen-based GPO BR automation runtime that always keeps the operator informed about loop state, why it is stuck, what it tried, and what needs fixing.
 **Depends on:** Phase 11.5
 **Requirements**: OPER-36, OPER-37 (existing), new Phase 12 requirements TBD
-**Status**: Phase 12.0 cleanup in progress; Phases 12.1–12.5 pending planning
+**Status**: Phase 12.0 complete; Phases 12.1–12.5 pending discuss/plan
 
 ### Phase 12.0: Contract Cleanup & Config Hygiene
 **Goal:** Fix 4 verified P0 issues remaining after Phase 11.5 before any feature work begins. These are silent runtime bugs that corrupt config persistence, leak secrets, and break region capture.
 **Depends on:** Phase 11.5
-**Status**: Hotfix applied; formal verification pending
-**Plans**: 4 plans (3 HOTFIX completed, 1 verification pending)
+**Status**: Complete — 6/7 checks PASS, V6 deferred to Phase 12.1
+**Plans**: 4 plans (3 HOTFIX completed, 1 verification completed 2026-04-24)
 Plans:
 - [x] 12-0-01-HOTFIX.md — Backend config contract: update_config persists (deep_merge -> save_config -> load_config), add get_config command, sanitize discord_events.webhook_url from /state, return has_webhook boolean
 - [x] 12-0-02-HOTFIX.md — Runtime region/window contract: fix get_search_region to call get_window_rect directly, stop using get_asset_capture_context() for screen region
 - [x] 12-0-03-HOTFIX.md — Config migration activation: call migrate_combat_regions() in load_config(), validate combat_regions_v2 area is normalized [0-1], preserve legacy regions for rollback
-- [ ] 12-0-VERIFICATION.md — Smoke + secret-leak verification
+- [x] 12-0-VERIFICATION.md — Smoke + secret-leak verification (6/7 PASS, V6 N/A pre-12.1)
 
 Exit criteria:
 - /state never leaks webhook URL (discord_events.webhook_url stripped)
@@ -294,7 +294,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 10. Rust/Tauri GUI | 4/4 | Complete | 2026-04-24 |
 | 11. YOLO Training Integration | 3/3 | Complete | 2026-04-24 |
 | 11.5 Contract Hardening | 3/3 | Complete | 2026-04-24 |
-| 12.0 Contract Cleanup | 3/3 | Hotfix applied; verification pending | — |
+| 12.0 Contract Cleanup | 3/3 | Complete (6/7 PASS) | 2026-04-24 |
 | 12.1 Region & Position Service | 3/3 | Pending | — |
 | 12.2 Smart Region Selector | 1/1 | Pending | — |
 | 12.3 Combat Position Picker | 1/1 | Pending | — |
