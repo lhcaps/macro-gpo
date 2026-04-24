@@ -56,8 +56,11 @@ Plans:
 **Goal:** Enhance Phase 8 YOLO training workflow with the improved approach from Bridger's reference. Better dataset collection UI, training pipeline automation, ONNX export.
 **Depends on**: Phase 9
 **Requirements**: OPER-36, OPER-37 (existing)
-**Status**: Pending
-**Plans**: 0 plans
+**Status**: Complete (2026-04-24)
+**Plans**: 3 plans across 3 waves
+- [x] 11-01-PLAN.md — Wave 1: Hybrid data collection (toggle capture + dataset helpers)
+- [x] 11-02-PLAN.md — Wave 2: Training CLI (scripts/train_yolo.py)
+- [x] 11-03-PLAN.md — Wave 3: Model management + HUD integration
 
 ### Phase 12: ZedsuBackend Feature Parity
 **Goal:** Ensure ZedsuBackend has all features BridgerBackend has: OCR region selector, Discord webhook with base64 screenshots, cast position picker, YouTube subscribe gating.
@@ -98,7 +101,7 @@ v3: Phase 9 → 10 → 11 → 12 → 13 → 14
 | 8. YOLO Detection | 1/1 | Complete | 2026-04-24 |
 | 9. 3-Tier Architecture | 3/3 | Complete | 2026-04-24 |
 | 10. Rust/Tauri GUI | 4/4 | Complete | 2026-04-24 |
-| 11. YOLO Training Integration | 0/0 | Pending | — |
+| 11. YOLO Training Integration | 3/3 | Complete | 2026-04-24 |
 | 12. Backend Feature Parity | 0/0 | Pending | — |
 | 13. System Tray v3 | 0/0 | Pending | — |
 | 14. Production Build | 0/0 | Pending | — |
