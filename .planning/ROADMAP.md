@@ -73,32 +73,222 @@ Plans:
 - [x] 11-5-02-PLAN.md — Wave 2: State Contract + HTTP Server (/health, /state.hud, ThreadingHTTPServer, requirements.txt)
 - [x] 11-5-03-PLAN.md — Wave 3: Vision + Config (YOLO parser/NMS, recursive validation, config schema v2)
 
-### Phase 12: ZedsuBackend Feature Parity
-**Goal:** Bring 3 key capabilities from BridgerBackend into ZedsuBackend: Smart Region Selector (drag-to-select, F6 hotkey), Advanced Discord Webhook (base64 screenshots, 5 event types, UI toggle tab), Combat Position Picker (click-to-capture, named positions).
-**Depends on**: Phase 9, Phase 11.5
-**Requirements**: New v3 requirements TBD
-**Status**: Discuss-phase complete — context: 12-CONTEXT.md, discussion log: 12-DISCUSSION-LOG.md
-**Plans**: 0 plans (ready for planning)
+### Phase 11.5: Contract & Runtime Hardening
+**Goal:** Lock the 3-tier contract before Phase 12 adds features. Fix 11 verified blockers: frontend/backend command mismatch (F1/F3), /health semantics, /state.hud canonical format, backend auto-start, ThreadingHTTPServer, find_and_click signature, click_saved_coordinate import, requirements.txt, YOLO parser/NMS, validation recursive dataset, and config schema. All blockers verified against source code.
+**Depends on:** Phase 9, Phase 10
+**Requirements**: New hardening requirements TBD
+**Status**: Complete
+**Plans**: 3 plans
+Plans:
+- [x] 11-5-01-PLAN.md — Wave 1: Backend Contract Core (toggle, emergency_stop, safe_find_and_click, click_saved_coordinate, no auto-start)
+- [x] 11-5-02-PLAN.md — Wave 2: State Contract + HTTP Server (/health, /state.hud, ThreadingHTTPServer, requirements.txt)
+- [x] 11-5-03-PLAN.md — Wave 3: Vision + Config (YOLO parser/NMS, recursive validation, config schema v2)
 
-### Phase 13: System Tray Integration (v3)
-**Goal:** Replace Phase 6 system tray plan with Tauri-based tray integration instead of pystray. System tray icon with state colors, right-click menu, balloon notifications.
-**Depends on**: Phase 10, Phase 11.5
-**Requirements**: OPER-29, OPER-30, OPER-31, OPER-32 (from v2)
-**Status**: Pending
-**Plans**: 0 plans
+### Phase 12: Operator Targeting & Notification Controls
+**Goal:** Build the core operator-facing controls: smart region selector, combat position picker, and structured Discord event system. This is NOT a Bridger clone — it is Zedsu's own product: a recoverable, screen-based GPO BR automation runtime that always keeps the operator informed about loop state, why it is stuck, what it tried, and what needs fixing.
+**Depends on:** Phase 11.5
+**Requirements**: OPER-36, OPER-37 (existing), new Phase 12 requirements TBD
+**Status**: Phase 12.0 cleanup in progress; Phases 12.1–12.5 pending planning
 
-### Phase 14: Production Build & Packaging
-**Goal:** PyInstaller build for ZedsuCore + ZedsuBackend, Tauri build for ZedsuFrontend, automated build script, single-click launcher.
-**Depends on**: Phase 10, Phase 11.5, Phase 12
-**Requirements**: New v3 requirements TBD
+### Phase 12.0: Contract Cleanup & Config Hygiene
+**Goal:** Fix 4 verified P0 issues remaining after Phase 11.5 before any feature work begins. These are silent runtime bugs that corrupt config persistence, leak secrets, and break region capture.
+**Depends on:** Phase 11.5
+**Status**: P0 fixes applied (src modified, awaiting verification commit)
+**Plans**: 3 plans
+Plans:
+- [ ] 12-0-01-PLAN.md — Backend config contract: update_config persists (deep_merge -> save_config -> load_config), add get_config command, sanitize discord_events.webhook_url from /state, return has_webhook boolean
+- [ ] 12-0-02-PLAN.md — Runtime region/window contract: fix get_search_region to call get_window_rect directly, stop using get_asset_capture_context() for screen region
+- [ ] 12-0-03-PLAN.md — Config migration activation: call migrate_combat_regions() in load_config(), validate combat_regions_v2 area is normalized [0-1], preserve legacy regions for rollback
+
+Exit criteria:
+- /state never leaks webhook URL (discord_events.webhook_url stripped)
+- update_config survives backend restart
+- legacy combat_regions auto-populates combat_regions_v2 on load
+- backend get_search_region returns non-None region when game window exists
+
+### Phase 12.1: Region & Position Service Layer
+**Goal:** Create typed service helpers (list/set/delete/resolve) for regions and positions before building overlay UI. Keeps service logic decoupled from UI.
+**Depends on:** Phase 12.0
 **Status**: Pending
-**Plans**: 0 plans
+**Plans**: 3 plans
+Plans:
+- [ ] 12-1-01-PLAN.md — Region model: list_regions(), set_region(), delete_region(), resolve_region(), validate_region()
+- [ ] 12-1-02-PLAN.md — Position model: list_positions(), set_position(), delete_position(), resolve_position(), validate_position()
+- [ ] 12-1-03-PLAN.md — Backend commands: GET /command get_regions, set_region, delete_region, get_positions, set_position, delete_position
+
+### Phase 12.2: Smart Region Selector
+**Goal:** Drag-to-select overlay for user-picked combat detection regions, stored as portable normalized [0-1] coordinates.
+**Depends on:** Phase 12.1
+**Status**: Pending
+**Plans**: 1 plan
+Plans:
+- [ ] 12-2-01-PLAN.md — Region selector: POST /command select_region, daemon overlay with drag-to-select, normalized area saved to combat_regions_v2, F6 hotkey, Enter confirm, Esc cancel
+
+Not doing: OCR/Tesseract, zoom lens, full dashboard, complex region editor.
+
+Exit criteria:
+- Select combat_scan → saved as [x1,y1,x2,y2] normalized
+- Window resize → resolve_region still maps correctly
+- Cancel does not mutate config
+- Region is used by CombatSignalDetector or locate_image search hints
+
+### Phase 12.3: Combat Position Picker
+**Goal:** Click-to-capture skill/action positions portable by window ratio, replacing hardcoded coords.
+**Depends on:** Phase 12.1
+**Status**: Pending
+**Plans**: 1 plan
+Plans:
+- [ ] 12-3-01-PLAN.md — Position picker: POST /command pick_position, transparent click overlay, captures x/y normalized to window, stores combat_positions[name] with window metadata, resolves for current window size
+
+Default names: melee, skill_1, skill_2, skill_3, ultimate, dash.
+
+Exit criteria:
+- Click inside window only (outside returns clear error)
+- Position survives window resize
+- emergency_stop cancels overlay safely
+
+### Phase 12.4: Discord Event System
+**Goal:** Transform Discord from "send a message" into an event policy layer. Core/Engine events dispatched to Discord with structured payloads and screenshot capture.
+**Depends on:** Phase 12.2, Phase 12.3
+**Status**: Pending
+**Plans**: 1 plan
+Plans:
+- [ ] 12-4-01-PLAN.md — Event dispatcher: match_end, kill_milestone, combat_start, death, bot_error events; MSS screenshot to in-memory multipart upload (no temp file); has_webhook boolean; deduplicate kill milestones per match
+
+Exit criteria:
+- Test webhook command works
+- match_end sends summary
+- kill_milestone fires only once per threshold
+- death sends event
+- bot_error sends without leaking traceback
+
+### Phase 12.5: Phase 12 Integration Verification
+**Goal:** Verify all Phase 12 features work together. Catch silent failures before Phase 13.
+**Depends on:** Phase 12.1, Phase 12.2, Phase 12.3, Phase 12.4
+**Status**: Pending
+**Plans**: 1 plan
+Plans:
+- [ ] 12-5-01-PLAN.md — Integration smoke: py_compile on all src/*.py, cargo check, backend smoke (GET /health, /state, all region/position commands), secret leak check (/state must not contain webhook URL)
+
+### Phase 13: Tauri Operator Shell: Tray, Settings, HUD Placement
+**Goal:** Complete the v3 operator shell — Tauri tray with state colors, dynamic HUD positioning, Settings surface. Not a UI redesign; a completion of the shell around the v3 architecture.
+**Depends on:** Phase 10, Phase 12.5
+**Status**: Pending
+**Plans**: 3 plans
+Plans:
+- [ ] 13-01-PLAN.md — Tauri tray: Gray idle, Green running, Yellow degraded, Red error; menu: Start, Stop, Pause/Resume, Open HUD, Open Settings, Open Logs, Restart Backend, Exit
+- [ ] 13-02-PLAN.md — Dynamic HUD positioning: remove hardcoded x=1700, use monitor size for top-right with margin, support basic multi-monitor
+- [ ] 13-03-PLAN.md — Settings window v3: read sanitized /state, update_config persists, region/position list, Discord event toggles, YOLO model status
+
+Exit criteria:
+- Tray works without opening main window
+- Exit gracefully stops backend
+- HUD never spawns off-screen
+- Settings can edit config and survive restart
+
+### Phase 14: Real Production Build & Packaging
+**Goal:** v3 production build — NOT the legacy Tkinter build_exe.py packaging. Tauri frontend + PyInstaller backend as separate executables.
+**Depends on:** Phase 10, Phase 13
+**Status**: Pending
+**Plans**: 4 plans
+Plans:
+- [ ] 14-01-PLAN.md — Legacy build rename: build_exe.py → build_legacy_tkinter.py, add warning comment
+- [ ] 14-02-PLAN.md — Backend PyInstaller build: entry src/zedsu_backend.py, include src package/assets/models, hiddenimports: cv2, numpy, mss, PIL, win32
+- [ ] 14-03-PLAN.md — Tauri production build: bundle backend as sidecar, configure icon/resources, no hardcoded dev URL
+- [ ] 14-04-PLAN.md — Build all script: scripts/build_all.ps1, smoke_test_dist.py
+
+Layout:
+```
+dist/Zedsu/
+  Zedsu.exe              # Tauri frontend / launcher
+  ZedsuBackend.exe        # Python backend
+  config.json
+  assets/models/yolo_gpo.onnx
+  logs/
+  runs/
+  captures/
+  diagnostics/
+```
+
+Exit criteria:
+- Fresh dist launch starts Tauri frontend
+- Frontend spawns backend
+- Backend starts idle
+- F3 starts bot
+- F1 emergency_stop works
+- Missing YOLO model → clear warning, no crash
+
+### Phase 15: Replay Benchmark & Regression Gate
+**Goal:** Turn detection/combat from "appears to work" into measurable metrics with replay fixtures and thresholds.
+**Depends on:** Phase 14
+**Status**: Pending
+**Plans**: 3 plans
+Plans:
+- [ ] 15-01-PLAN.md — Screenshot fixture format: tests/replay/{lobby_1080p, combat_1080p, postmatch_900p}/ with expected.json
+- [ ] 15-02-PLAN.md — Detection benchmark CLI: locate_image + HSV + YOLO on fixtures, report p50/p95 latency, false positive/negative
+- [ ] 15-03-PLAN.md — Config resolution tests: regions/positions stable across resize; CI-style verifier: compile + unit + cargo check + replay threshold
+
+Exit criteria:
+- Detection p95 under target
+- UI assets detected on 720p/900p/1080p/1440p fixtures
+- Region/position mapping stable across resize
+
+### Phase 16: Runtime Observability & Recovery Intelligence
+**Goal:** Revive Phase 1 diagnostics as structured RunRecorder + EventBus + operator-facing recovery hints.
+**Depends on:** Phase 15
+**Status**: Pending
+**Plans**: 2 plans
+Plans:
+- [ ] 16-01-PLAN.md — RunRecorder + EventBus: structured events (combat_start, death, kill, match_end, bot_error), per-match summary, recovery_reason field
+- [ ] 16-02-PLAN.md — State extension: run.id, run.phase, run.started_at, run.last_event, run.recovery_reason, run.operator_hint exposed via /state.hud
+
+Exit criteria:
+- Operator sees why loop is stuck (HUD/tray shows degraded reason)
+- Logs can reconstruct one match without raw text parsing
+- /state includes operator_hint when bot is in degraded state
+
+### Phase 17: Combat Quality & YOLO Calibration
+**Goal:** Increase detection/combat quality after benchmark baseline is established.
+**Depends on:** Phase 15, Phase 16
+**Status**: Pending
+**Plans**: 2 plans
+Plans:
+- [ ] 17-01-PLAN.md — YOLO confidence calibration: verify output parser against real ONNX export, class-wise thresholds, NMS tuning
+- [ ] 17-02-PLAN.md — Combat FSM event hooks: combat_start, death, kill, low_hp, enemy_lost events wired to event bus; skill position strategy using combat_positions
+
+Not doing: Walk recording/playback until product core is stable post-RC.
+
+### Phase 18: Release Candidate & UAT Matrix
+**Goal:** Final release candidate with full UAT coverage.
+**Depends on:** Phase 17
+**Status**: Pending
+**Plans**: 1 plan
+Plans:
+- [ ] 18-01-PLAN.md — UAT matrix: Windows 10/11, DPI 100/125/150/175, Roblox 720p/900p/1080p/1440p, fresh/migrated config, no/partial/full YOLO, no/valid webhook, backend/core crash, F1 during held key
+
+Exit criteria:
+- One-click launch
+- Start/stop stable
+- Operator can configure from UI
+- No secret leak
+- No silent failure
+- Logs/diagnostics usable
+
+### Phase 19: Optional Advanced Features
+**Goal:** Post-RC enhancements. These are explicitly deferred until RC passes.
+**Depends on:** Phase 18
+**Status**: Future/backlog
+Plans:
+- [ ] Walk recording/playback
+- [ ] Config reset/default profiles
+- [ ] Monitor enumeration for multi-monitor setup
+- [ ] Advanced route strategy (beyond current melee loop)
 
 ## Progress
 
 **Execution Order:**
-v2: Phases 1-5 → 8 → 6 → 7 (all complete, Phase 6-7 plans ready)
-v3: Phase 9 → 10 → 11 → 11.5 → 12 → 13 → 14
+v2: Phases 1-5 → 8 → 6 → 7 (all complete)
+v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 → 12.5 → 13 → 14 → 15 → 16 → 17 → 18 → 19
 
 | Phase | Plans | Status | Completed |
 |-------|-------|--------|-----------|
@@ -114,9 +304,19 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12 → 13 → 14
 | 10. Rust/Tauri GUI | 4/4 | Complete | 2026-04-24 |
 | 11. YOLO Training Integration | 3/3 | Complete | 2026-04-24 |
 | 11.5 Contract Hardening | 3/3 | Complete | 2026-04-24 |
-| 12. Backend Feature Parity | 0/0 | Discuss done | — |
-| 13. System Tray v3 | 0/0 | Pending | — |
-| 14. Production Build | 0/0 | Pending | — |
+| 12.0 Contract Cleanup | 3/3 | P0 fixes applied, plans pending | — |
+| 12.1 Region & Position Service | 3/3 | Pending | — |
+| 12.2 Smart Region Selector | 1/1 | Pending | — |
+| 12.3 Combat Position Picker | 1/1 | Pending | — |
+| 12.4 Discord Event System | 1/1 | Pending | — |
+| 12.5 Phase 12 Integration | 1/1 | Pending | — |
+| 13. Tauri Operator Shell | 3/3 | Pending | — |
+| 14. Real Production Build | 4/4 | Pending | — |
+| 15. Replay Benchmark | 3/3 | Pending | — |
+| 16. Runtime Observability | 2/2 | Pending | — |
+| 17. Combat Quality & YOLO | 2/2 | Pending | — |
+| 18. Release Candidate & UAT | 1/1 | Pending | — |
+| 19. Optional Advanced Features | 0/0 | Future/backlog | — |
 
 ## Research Artifacts
 

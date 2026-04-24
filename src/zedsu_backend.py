@@ -179,10 +179,17 @@ class BackendCallbacks:
             _core_instance._engine.invalidate_region_cache()
 
     def get_search_region(self) -> Optional[dict]:
-        """Get current window region for screen capture."""
-        from src.utils.config import get_asset_capture_context
+        """Get current game window region for screen capture (MSS monitor dict)."""
         try:
-            return get_asset_capture_context()
+            window_title = _app_config.get("game_window_title", "")
+            if not window_title:
+                return None
+            from src.utils.windows import get_window_rect
+            rect = get_window_rect(str(window_title))
+            if not rect:
+                return None
+            left, top, right, bottom = int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3])
+            return {"left": left, "top": top, "width": right - left, "height": bottom - top}
         except Exception:
             return None
 
@@ -382,12 +389,18 @@ def _yolo_capture_loop():
 
     while _yolo_capture_active:
         try:
+            # Get current window region for MSS capture
+            window_title = _app_config.get("game_window_title", "") if _app_config else ""
             region = None
-            try:
-                from src.utils.config import get_asset_capture_context
-                region = get_asset_capture_context()
-            except Exception:
-                pass
+            if window_title:
+                try:
+                    from src.utils.windows import get_window_rect
+                    rect = get_window_rect(str(window_title))
+                    if rect:
+                        left, top, right, bottom = int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3])
+                        region = {"left": left, "top": top, "width": right - left, "height": bottom - top}
+                except Exception:
+                    pass
 
             if region:
                 import mss
@@ -519,6 +532,13 @@ class ZedsuHandler(BaseHTTPRequestHandler):
             config_for_frontend = dict(_app_config)
             config_for_frontend.pop("discord_webhook", None)
             config_for_frontend.pop("discord_webhook_url", None)
+            # Strip nested discord_events.webhook_url (Phase 12 config schema)
+            if "discord_events" in config_for_frontend:
+                config_for_frontend["discord_events"] = dict(config_for_frontend["discord_events"])
+                config_for_frontend["discord_events"].pop("webhook_url", None)
+                config_for_frontend["discord_events"]["has_webhook"] = bool(
+                    _app_config.get("discord_events", {}).get("webhook_url")
+                )
 
             # Run quality validation if not yet checked (Phase 11)
             if not _yolo_quality_checked:
@@ -670,13 +690,17 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                 self._send_json({"status": "ok"})
 
             elif action == "update_config":
-                # D-11.5a-04: partial config update via deep merge
-                from src.utils.config import _deep_merge
+                # D-11.5a-04: partial config update via deep merge + persist
+                from src.utils.config import _deep_merge, save_config, load_config
                 if payload is None:
                     self._send_json({"status": "error", "message": "payload required"}, 400)
                     return
+                # Deep-merge into memory
                 _app_config = _deep_merge(_app_config, payload)
-                self._send_json({"status": "ok"})
+                # Persist to disk and reload normalized version
+                save_config(_app_config)
+                _app_config = load_config()
+                self._send_json({"status": "ok", "config": dict(_app_config)})
 
             # Phase 11: YOLO capture commands
             elif action == "yolo_capture_start":

@@ -9,12 +9,12 @@ See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 ## Current Position
 
-Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-11 complete, Phase 11.5 planning in progress)
-Phase: 11.5 (Contract & Runtime Hardening)
-Status: COMPLETE — 3/3 plans executed, all 23 must-haves verified pass
-Next: Phase 12 — ZedsuBackend Feature Parity
+Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-11.5 complete, Phase 12.0 in progress)
+Phase: 12.0 (Contract Cleanup & Config Hygiene)
+Status: P0 fixes applied to source; awaiting plan creation and execution
+Next: Phase 12.0 — 3 cleanup plans then Phase 12.1
 
-Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-11.5 complete, Phase 12 ready for planning
+Progress: [▓▓▓▓▓▓▓▓▓░] v2 complete, v3 Phase 9-11.5 complete, Phase 12.0 P0 fixes done, Phase 12.0 plans pending
 
 ## Accumulated Context
 
@@ -76,11 +76,21 @@ Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-11.5 complete
 - Validation + warnings on startup — inference test on val set, precision < 60% warning
 - Model quality in HUD (OK / No model / Quality: 73%)
 
+### Decisions (Milestone v3 — Phase 12.0)
+
+- update_config persists: deep_merge -> save_config -> load_config (backend.py line 672)
+- /state sanitizes discord_events.webhook_url: pops nested key, adds has_webhook boolean
+- migrate_combat_regions() called inside load_config() (config.py line 696)
+- get_search_region() calls get_window_rect directly; get_asset_capture_context() reserved for asset metadata only
+
 ### Decisions (Milestone v3 — Phase 12)
 
-- Smart Region Selector: drag-to-select box (Bridger pattern, no zoom lens), multiple named regions, F6 hotkey, stored nested in config.json under `combat_regions: {name: [x1,y1,x2,y2]}`
-- Advanced Discord Webhook: inline base64 screenshot (no temp file), 5 event types (match_end, kill_milestone, combat_start, death, bot_error), UI toggle tab in Settings, keep send_discord() utility
-- Combat Position Picker: multiple named positions, single-click overlay, relative coords [0-1], Settings UI only, stored in `combat_positions: {name: {x,y}}`
+- Phase 12 renamed: "Operator Targeting & Notification Controls" (not "ZedsuBackend Feature Parity")
+- Phase 12 split into sub-phases: 12.0 cleanup → 12.1 service layer → 12.2 region selector → 12.3 position picker → 12.4 discord events → 12.5 integration
+- Phase 12 is NOT a Bridger clone — Zedsu's product value is: recoverable automation runtime that always keeps operator informed
+- Smart Region Selector: drag-to-select box, multiple named regions, F6 hotkey, stored in combat_regions_v2 as normalized [x1,y1,x2,y2]
+- Combat Position Picker: multiple named positions, single-click overlay, normalized [0-1] relative coords, stored in combat_positions
+- Discord Event System: match_end, kill_milestone, combat_start, death, bot_error; in-memory multipart upload (no temp file); has_webhook boolean
 
 ### Decisions (Milestone v3 — Phase 11.5)
 
@@ -101,9 +111,12 @@ Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-11.5 complete
 
 ### Decisions (Milestone v3 — Phase 13+)
 
-- System tray v3: Tauri-native tray with 4 state colors (Gray/Green/Yellow/Red)
-- Tray menu maps directly to backend commands
-- Production build: separate ZedsuFrontend.exe + ZedsuBackend.exe + config.json layout
+- System tray v3: Tauri-native tray with 4 state colors (Gray/Green/Yellow/Red), full menu
+- Dynamic HUD positioning: reads monitor size, top-right with margin, no hardcoded coords
+- Production build: separate ZedsuFrontend.exe + ZedsuBackend.exe + config.json layout — NOT legacy build_exe.py
+- Replay benchmark: screenshot fixtures for detection metrics before Phase 17 combat quality work
+- Runtime observability: RunRecorder + EventBus + operator_hint in /state for recovery intelligence
+- Walk recording/playback deferred until post-RC
 
 ## Deferred Items
 
@@ -132,11 +145,18 @@ Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-11.5 complete
 ## Session Continuity
 
 Last session: 2026-04-24
-Stopped at: Phase 12 (ZedsuBackend Feature Parity) discuss-phase complete
-Resume file: .planning/phases/12-backend-parity/12-CONTEXT.md
+Stopped at: Phase 12.0 — Contract Cleanup & Config Hygiene
+Resumed at: Phase 12.0 P0 fixes applied, roadmap rewritten
 
-## Session Continuity (2026-04-24)
+## Session Continuity (2026-04-24 — resumed)
 
-After Phase 12 discuss-phase, a brutal code review identified **11 blockers** that must be fixed before Phase 12 feature work. All blockers verified against source code. Root cause: contract mismatch between frontend/backend/core tiers + runtime safety gaps.
+Brutal code review of Phase 11.5 found 4 P0 issues that must be fixed before Phase 12.1 feature work:
 
-Next action: Insert Phase 11.5 before Phase 12 to harden the v3 stack contract. Phase 12 deferred until Phase 11.5 complete.
+1. **update_config must persist**: deep_merge -> save_config -> load_config (applied to zedsu_backend.py line 672)
+2. **Secret leak fix**: /state now strips discord_events.webhook_url, adds has_webhook boolean (applied to zedsu_backend.py line 519)
+3. **Migration must run**: migrate_combat_regions() called inside load_config() (applied to config.py line 696)
+4. **get_search_region fix**: calls get_window_rect directly instead of broken get_asset_capture_context() (applied to zedsu_backend.py line 181)
+
+All fixes verified with python -m py_compile (exit 0).
+
+Next action: Create Phase 12.0 plans (12-0-01, 12-0-02, 12-0-03) and execute.

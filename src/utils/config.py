@@ -693,6 +693,8 @@ def load_config():
     user_config["coordinate_layout_version"] = COORDINATE_LAYOUT_VERSION
 
     config = _normalize_config(_deep_merge(DEFAULT_CONFIG, user_config))
+    # D-11.5k-03: migrate legacy combat_regions -> combat_regions_v2 on every load
+    config = migrate_combat_regions(config)
     save_config(config)
     return config
 
