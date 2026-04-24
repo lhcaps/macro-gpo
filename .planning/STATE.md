@@ -5,16 +5,16 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Fast, intelligent, real-combat macro with 3-tier architecture and modern Rust/Tauri GUI.
-**Current focus:** Phase 11 — YOLO Training Integration (executed, verifying)
+**Current focus:** Phase 12 — ZedsuBackend Feature Parity (discuss complete, ready for planning)
 
 ## Current Position
 
-Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-11 complete)
-Phase: 11 (YOLO Training Integration)
-Status: Complete — 3 plans across 3 waves executed
-Next: $gsd-progress
+Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-11 complete, Phase 12 in progress)
+Phase: 12 (ZedsuBackend Feature Parity)
+Status: Context gathered — 3 features scoped: Region Selector, Discord Webhook, Position Picker
+Next: $gsd-plan-phase 12
 
-Progress: [▓▓▓▓▓░░░░░] v2 complete, v3 Phase 9-11 complete
+Progress: [▓▓▓▓▓▓░░░░] v2 complete, v3 Phase 9-11 complete, Phase 12 discuss done
 
 ## Accumulated Context
 
@@ -76,6 +76,12 @@ Progress: [▓▓▓▓▓░░░░░] v2 complete, v3 Phase 9-11 complete
 - Validation + warnings on startup — inference test on val set, precision < 60% warning
 - Model quality in HUD (OK / No model / Quality: 73%)
 
+### Decisions (Milestone v3 — Phase 12)
+
+- Smart Region Selector: drag-to-select box (Bridger pattern, no zoom lens), multiple named regions, F6 hotkey, stored nested in config.json under `combat_regions: {name: [x1,y1,x2,y2]}`
+- Advanced Discord Webhook: inline base64 screenshot (no temp file), 5 event types (match_end, kill_milestone, combat_start, death, bot_error), UI toggle tab in Settings, keep send_discord() utility
+- Combat Position Picker: multiple named positions, single-click overlay, relative coords [0-1], Settings UI only, stored in `combat_positions: {name: {x,y}}`
+
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
@@ -86,6 +92,9 @@ Progress: [▓▓▓▓▓░░░░░] v2 complete, v3 Phase 9-11 complete
 | Architecture | 3-tier separation | Phase 9 (v3) | 2026-04-24 |
 | Architecture | Rust/Tauri GUI | Phase 10 (v3) | 2026-04-24 |
 | Build | Production packaging | Phase 14 (v3) | 2026-04-24 |
+| Features | Walk recording/playback | Phase 15 (future) | 2026-04-24 |
+| Features | Audio RMS monitoring | Not needed for FPS combat | 2026-04-24 |
+| Features | YouTube subscribe gating | Not relevant for combat bot | 2026-04-24 |
 
 ## Research Status
 
@@ -102,4 +111,3 @@ Progress: [▓▓▓▓▓░░░░░] v2 complete, v3 Phase 9-11 complete
 Last session: 2026-04-24
 Stopped at: Phase 12 (ZedsuBackend Feature Parity) discuss-phase complete
 Resume file: .planning/phases/12-backend-parity/12-CONTEXT.md
-

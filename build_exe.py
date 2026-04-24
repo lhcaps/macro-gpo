@@ -75,6 +75,11 @@ def remove_tree(path):
         raise last_error
 
 
+def fslash(path: Path) -> str:
+    """Convert Path to forward-slash string for PyInstaller compatibility."""
+    return str(path).replace("\\", "/")
+
+
 def main():
     try:
         import PyInstaller.__main__
@@ -108,49 +113,81 @@ def main():
             print("Close any running Zedsu.exe process and run build_exe.py again.")
             sys.exit(1)
 
-    # Phase 8: Build PyInstaller arguments
-    pyinstaller_args = [
-        "--noconfirm",
-        "--clean",
-        "--onefile",
-        "--windowed",
-        "--name",
-        "Zedsu",
-        "--add-data",
-        f"{project_root / 'src'}{';' if sys.platform == 'win32' else ':'}{project_root / 'src'}",
-        "--hidden-import",
-        "PIL._tkinter_finder",
-        "--hidden-import",
+    # Build datas list: (source, dest) with forward slashes
+    # NOTE: PyInstaller 6.x SourceDestAction regex can't distinguish a path
+    # colon from the drive letter colon when paths contain colons (e.g. "GPO BR").
+    # Spec-file datas tuples bypass that parser entirely, so we use a spec file.
+    hiddenimports = [
         "cv2",
-        "--hidden-import",
         "cv2.cv2",
-        "--hidden-import",
         "mss",
-        "--hidden-import",
         "numpy",
-        "--hidden-import",
         "numpy._core",
-        "--hidden-import",
         "numpy._core._multiarray_umath",
+        "PIL._tkinter_finder",
     ]
 
-    # Phase 8: Bundle ONNX YOLO model (D-24 → D-29)
+    datas = [
+        (fslash(project_root / "src"), "src"),
+    ]
+
     model_source = project_root / "assets" / "models" / "yolo_gpo.onnx"
     if model_source.exists():
-        pyinstaller_args.extend([
-            "--add-data",
-            f"{model_source}{';' if sys.platform == 'win32' else ':'}assets{chr(92) if sys.platform == 'win32' else '/'}models",
-        ])
+        datas.append((fslash(model_source), "assets/models"))
     else:
         print("[build] WARNING: assets/models/yolo_gpo.onnx not found.")
         print("[build] YOLO detection will be disabled until model is trained and placed.")
         print("[build] To enable: collect screenshots, annotate with LabelImg,")
         print("[build] train YOLO11n, export as ONNX (opset=11), place at assets/models/yolo_gpo.onnx")
 
-    pyinstaller_args.append(str(project_root / "main.py"))
+    main_py = fslash(project_root / "main.py")
+
+    spec_content = f'''# -*- mode: python ; coding: utf-8 -*-
+
+a = Analysis(
+    ['{main_py}'],
+    pathex=[],
+    binaries=[],
+    datas={datas!r},
+    hiddenimports={hiddenimports!r},
+    hookspath=[],
+    hooksconfig={{}},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+    optimize=0,
+)
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='Zedsu',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+'''
+
+    spec_path = project_root / "Zedsu.spec"
+    spec_path.write_text(spec_content, encoding="utf-8")
+    print(f"[build] Wrote spec file: {spec_path}")
 
     try:
-        PyInstaller.__main__.run(pyinstaller_args)
+        # Pass the spec file path directly — skips makespec, uses datas from spec
+        PyInstaller.__main__.run([str(spec_path)])
     finally:
         if runtime_backed_up:
             dist_dir.mkdir(parents=True, exist_ok=True)

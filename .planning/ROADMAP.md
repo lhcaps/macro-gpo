@@ -3,9 +3,9 @@
 ## Overview
 
 Zedsu v3 transforms the monolithic single-process Python app into the **3-tier architecture** pioneered by Bridger (referenced at `bridger_source/`):
-- **Tier 1 (ZedsuCore.py):** Pure Python logic — bot engine, vision, combat FSM, no GUI imports
-- **Tier 2 (ZedsuBackend.py):** Python HTTP API server — config management, Discord webhook, OCR region picker
-- **Tier 3 (ZedsuFrontend/):** Rust/Tauri 2.x WebView — process supervisor, transparent overlay, modern UI
+- **Tier 1 (`src/zedsu_core.py`):** Pure Python logic — bot engine, vision, combat FSM, no GUI imports
+- **Tier 2 (`src/zedsu_backend.py`):** Python HTTP API server — config management, Discord webhook, region selectors, position picker
+- **Tier 3 (`src/ZedsuFrontend/`):** Rust/Tauri 2.x WebView — process supervisor, transparent overlay, modern UI
 
 **Reference architecture:** `bridger_source/` — decompiled Bridger fishing macro demonstrating the same 3-tier pattern in production.
 
@@ -36,9 +36,9 @@ Zedsu v3 transforms the monolithic single-process Python app into the **3-tier a
 **Status**: Complete — UAT: 16/16 pass, cargo check: PASS, backend endpoints verified
 **Plans**: 3 plans
 Plans:
-- [ ] 09-01-PLAN.md — Wave 1: Extract ZedsuCore (Tier 1)
-- [ ] 09-02-PLAN.md — Wave 2: Create ZedsuBackend HTTP API (Tier 2)
-- [ ] 09-03-PLAN.md — Wave 3: Scaffold ZedsuFrontend Tauri project (Tier 3)
+- [x] 09-01-PLAN.md — Wave 1: Extract ZedsuCore (Tier 1)
+- [x] 09-02-PLAN.md — Wave 2: Create ZedsuBackend HTTP API (Tier 2)
+- [x] 09-03-PLAN.md — Wave 3: Scaffold ZedsuFrontend Tauri project (Tier 3)
 
 ### Phase 10: Modern Rust/Tauri GUI
 **Goal:** Build the Tauri 2.x WebView GUI replacing Tkinter app.py. Process supervisor, transparent overlay, hotkey management, state polling from Backend.
@@ -63,11 +63,11 @@ Plans:
 - [x] 11-03-PLAN.md — Wave 3: Model management + HUD integration
 
 ### Phase 12: ZedsuBackend Feature Parity
-**Goal:** Ensure ZedsuBackend has all features BridgerBackend has: OCR region selector, Discord webhook with base64 screenshots, cast position picker, YouTube subscribe gating.
+**Goal:** Bring 3 key capabilities from BridgerBackend into ZedsuBackend: Smart Region Selector (drag-to-select, F6 hotkey), Advanced Discord Webhook (base64 screenshots, 5 event types, UI toggle tab), Combat Position Picker (click-to-capture, named positions).
 **Depends on**: Phase 9
 **Requirements**: New v3 requirements TBD
-**Status**: Pending
-**Plans**: 0 plans
+**Status**: Discuss-phase complete — context: 12-CONTEXT.md, discussion log: 12-DISCUSSION-LOG.md
+**Plans**: 0 plans (ready for planning)
 
 ### Phase 13: System Tray Integration (v3)
 **Goal:** Replace Phase 6 system tray plan with Tauri-based tray integration instead of pystray. System tray icon with state colors, right-click menu, balloon notifications.
@@ -102,7 +102,7 @@ v3: Phase 9 → 10 → 11 → 12 → 13 → 14
 | 9. 3-Tier Architecture | 3/3 | Complete | 2026-04-24 |
 | 10. Rust/Tauri GUI | 4/4 | Complete | 2026-04-24 |
 | 11. YOLO Training Integration | 3/3 | Complete | 2026-04-24 |
-| 12. Backend Feature Parity | 0/0 | Pending | — |
+| 12. Backend Feature Parity | 0/0 | Discuss done | — |
 | 13. System Tray v3 | 0/0 | Pending | — |
 | 14. Production Build | 0/0 | Pending | — |
 

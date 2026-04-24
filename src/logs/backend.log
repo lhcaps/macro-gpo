@@ -1,0 +1,23 @@
+[10:44:31] [BACKEND] Bot loop started
+[10:44:31] [BACKEND] ZedsuCore started
+[10:44:31] [BACKEND] ZedsuCore started
+[10:44:31] [BACKEND] ZedsuBackend listening on http://127.0.0.1:9761
+[10:44:43] [BACKEND] ZedsuCore stopping...
+[10:44:43] [BACKEND] Bot loop stopped.
+[10:44:43] [BACKEND] ZedsuCore stopped
+[10:45:47] [BACKEND] Bot loop started
+[10:45:47] [BACKEND] ZedsuCore started
+[10:45:47] [BACKEND] ZedsuCore started
+[10:45:47] [BACKEND] ZedsuBackend listening on http://127.0.0.1:9761
+[10:46:11] [BACKEND] ZedsuCore stopping...
+[10:46:11] [BACKEND] Bot loop stopped.
+[10:46:11] [BACKEND] ZedsuCore stopped
+[10:46:11] [BACKEND] Bot loop started
+[10:46:11] [BACKEND] ZedsuCore started
+[10:46:11] [BACKEND] ZedsuCore started
+[18:17:55] [BACKEND] YOLO model not found at: E:\Macro\GPO BR\tuitaolaso1\src\core\..\assets\models\yolo_gpo.onnx
+[18:17:55] [BACKEND] YOLO detection disabled. Using OpenCV fallback.
+[18:17:55] [BACKEND] YOLO quality validation failed: cannot import name 'validate_model_on_dataset' from 'src.core.vision_yolo' (E:\Macro\GPO BR\tuitaolaso1\src\core\vision_yolo.py)
+[18:19:45] [BACKEND] YOLO model not found at: E:\Macro\GPO BR\tuitaolaso1\src\core\..\assets\models\yolo_gpo.onnx
+[18:19:45] [BACKEND] YOLO detection disabled. Using OpenCV fallback.
+[18:19:45] [BACKEND] YOLO quality validation: Model not available
