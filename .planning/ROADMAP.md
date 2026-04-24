@@ -137,7 +137,7 @@ Exit criteria:
 ### Phase 12.3: Combat Position Picker
 **Goal:** Click-to-capture skill/action positions portable by window ratio, replacing hardcoded coords.
 **Depends on:** Phase 12.1
-**Status**: Pending
+**Status**: Ready to execute — plans complete (2026-04-25)
 **Plans**: 3 plans
 Plans:
 - [ ] 12-3-01-PLAN.md — Wave 1: PositionPickerOverlay module (Tkinter click overlay, single-shot capture)
@@ -311,7 +311,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.0 Contract Cleanup | 3/3 | Complete (6/7 PASS) | 2026-04-24 |
 | 12.1 Region & Position Service | 4/4 | Complete | 2026-04-24 |
 | 12.2 Smart Region Selector | 2/2 | Complete | 2026-04-24 |
-| 12.3 Combat Position Picker | 0/3 | Pending | — |
+| 12.3 Combat Position Picker | 0/3 | Ready | — |
 | 12.4 Discord Event System | 1/1 | Pending | — |
 | 12.5 Phase 12 Integration | 1/1 | Pending | — |
 | 13. Tauri Operator Shell | 3/3 | Pending | — |

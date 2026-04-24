@@ -5,15 +5,15 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12.3 — Combat Position Picker (discuss done)
+**Current focus:** Phase 12.3 — Combat Position Picker (planning complete)
 Active subphase: 12.3 Combat Position Picker (discuss done)
 
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.2 complete)
-Phase: 12.2 complete (2/2 plans, 2026-04-24); 12.3 context ready; next: Phase 12.3
-Status: Phase 12.2 Smart Region Selector complete; Phase 12.3 context captured
-Next: Phase 12.3 Combat Position Picker (planning)
+Phase: 12.3 plans ready (3 plans: 01 overlay, 02 backend handler, 03 verification)
+Status: Phase 12.2 Smart Region Selector complete; Phase 12.3 plans ready (3 plans)
+Next: Phase 12.3 execute (3 plans: overlay + backend handler + verification)
 
 Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.2 complete (12.3-12.5 pending)
 
@@ -168,10 +168,15 @@ Phase 12.2 discuss complete — context captured with 3 decisions:
 
 Next: Plan Phase 12.2
 
-## Session Continuity (2026-04-25 — Phase 12.3 discuss)
+## Session Continuity (2026-04-25 — Phase 12.3 discuss + plan)
 
 Phase 12.3 context captured — 2 decisions:
 1. Single-shot click overlay (closes immediately after one click)
 2. Frontend sends position name via payload (clean separation)
 
-Next: Plan Phase 12.3
+Phase 12.3 planning complete — 3 plans written and verified:
+1. 12-3-01: PositionPickerOverlay Tkinter module (mirrors RegionSelectorOverlay from Phase 12.2)
+2. 12-3-02: Backend pick_position handler + _active_overlay global + emergency_stop cancel
+3. 12-3-03: 12 verification checks
+
+Next: Execute Phase 12.3
