@@ -120,11 +120,11 @@ Exit criteria:
 ### Phase 12.2: Smart Region Selector
 **Goal:** Drag-to-select overlay for user-picked combat detection regions, stored as portable normalized [0-1] coordinates.
 **Depends on:** Phase 12.1
-**Status**: Planned
+**Status**: Complete (2026-04-24)
 **Plans**: 2 plans
 Plans:
-- [ ] 12-2-01-PLAN.md — Wave 1: Region selector overlay module (Tkinter drag-to-select, normalization, service integration)
-- [ ] 12-2-02-PLAN.md — Wave 2: Backend command handler (POST /command select_region, daemon thread, save+reload)
+- [x] 12-2-01-PLAN.md — Wave 1: Region selector overlay module (Tkinter drag-to-select, normalization, service integration)
+- [x] 12-2-02-PLAN.md — Wave 2: Backend command handler (POST /command select_region, non-daemon thread, save+reload)
 
 Not doing: OCR/Tesseract, zoom lens, full dashboard, complex region editor.
 
@@ -308,7 +308,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 11.5 Contract Hardening | 3/3 | Complete | 2026-04-24 |
 | 12.0 Contract Cleanup | 3/3 | Complete (6/7 PASS) | 2026-04-24 |
 | 12.1 Region & Position Service | 4/4 | Complete | 2026-04-24 |
-| 12.2 Smart Region Selector | 1/1 | Pending | — |
+| 12.2 Smart Region Selector | 2/2 | Complete | 2026-04-24 |
 | 12.3 Combat Position Picker | 1/1 | Pending | — |
 | 12.4 Discord Event System | 1/1 | Pending | — |
 | 12.5 Phase 12 Integration | 1/1 | Pending | — |

@@ -5,17 +5,17 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12.2 — Smart Region Selector (context gathered, pending plan)
-Active subphase: 12.2 Smart Region Selector (context gathered, pending plan)
+**Current focus:** Phase 12.2 — Smart Region Selector (executing)
+Active subphase: 12.2 Smart Region Selector (executing)
 
 ## Current Position
 
-Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.0 complete)
-Phase: 12.1 complete (11/11 PASS); Phase 12.2 context gathered, pending plan
-Status: Phase 12.1 complete; Phase 12.2 Smart Region Selector context gathered, next: plan-phase
-Next: Discuss Phase 12.2
+Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.1 complete)
+Phase: 12.2 Smart Region Selector (2/2 plans executed, verifying)
+Status: Phase 12.2 executing — Wave 1 (overlay module) and Wave 2 (backend handler) complete
+Next: Verify Phase 12.2
 
-Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.1 complete, 12.2 context done (12.3-12.5 pending)
+Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.1 complete, 12.2 executing (12.3-12.5 pending)
 
 ## Accumulated Context
 
