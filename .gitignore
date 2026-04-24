@@ -24,3 +24,12 @@ src/assets/*.png
 # IDEs
 .vscode/
 .idea/
+
+# Logs
+src/logs/*.log
+
+# Rust build output
+src/ZedsuFrontend/target/
+
+# GSD tooling
+.codex/

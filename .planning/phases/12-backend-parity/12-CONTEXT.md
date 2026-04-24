@@ -195,5 +195,5 @@ None — không có pending todos matched Phase 12 scope.
 
 ---
 
-*Phase: 12-backend-parity*
+*Phase: 12-backend-parity (DEPRECATED — renamed to 12-operator-targeting)*
 *Context gathered: 2026-04-24*
