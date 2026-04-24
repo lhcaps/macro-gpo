@@ -62,23 +62,34 @@ Plans:
 - [x] 11-02-PLAN.md — Wave 2: Training CLI (scripts/train_yolo.py)
 - [x] 11-03-PLAN.md — Wave 3: Model management + HUD integration
 
+### Phase 11.5: Contract & Runtime Hardening
+**Goal:** Lock the 3-tier contract before Phase 12 adds features. Fix 11 verified blockers: frontend/backend command mismatch (F1/F3), /health semantics, /state.hud canonical format, backend auto-start, ThreadingHTTPServer, find_and_click signature, click_saved_coordinate import, requirements.txt, YOLO parser/NMS, validation recursive dataset, and config schema. All blockers verified against source code.
+**Depends on**: Phase 9, Phase 10
+**Requirements**: New hardening requirements TBD
+**Status**: Plans complete
+**Plans**: 3 plans
+Plans:
+- [ ] 11-5-01-PLAN.md — Wave 1: Backend Contract Core (toggle, emergency_stop, safe_find_and_click, click_saved_coordinate, no auto-start)
+- [ ] 11-5-02-PLAN.md — Wave 2: State Contract + HTTP Server (/health, /state.hud, ThreadingHTTPServer, requirements.txt)
+- [ ] 11-5-03-PLAN.md — Wave 3: Vision + Config (YOLO parser/NMS, recursive validation, config schema v2)
+
 ### Phase 12: ZedsuBackend Feature Parity
 **Goal:** Bring 3 key capabilities from BridgerBackend into ZedsuBackend: Smart Region Selector (drag-to-select, F6 hotkey), Advanced Discord Webhook (base64 screenshots, 5 event types, UI toggle tab), Combat Position Picker (click-to-capture, named positions).
-**Depends on**: Phase 9
+**Depends on**: Phase 9, Phase 11.5
 **Requirements**: New v3 requirements TBD
 **Status**: Discuss-phase complete — context: 12-CONTEXT.md, discussion log: 12-DISCUSSION-LOG.md
 **Plans**: 0 plans (ready for planning)
 
 ### Phase 13: System Tray Integration (v3)
 **Goal:** Replace Phase 6 system tray plan with Tauri-based tray integration instead of pystray. System tray icon with state colors, right-click menu, balloon notifications.
-**Depends on**: Phase 10
+**Depends on**: Phase 10, Phase 11.5
 **Requirements**: OPER-29, OPER-30, OPER-31, OPER-32 (from v2)
 **Status**: Pending
 **Plans**: 0 plans
 
 ### Phase 14: Production Build & Packaging
 **Goal:** PyInstaller build for ZedsuCore + ZedsuBackend, Tauri build for ZedsuFrontend, automated build script, single-click launcher.
-**Depends on**: Phase 10, Phase 12
+**Depends on**: Phase 10, Phase 11.5, Phase 12
 **Requirements**: New v3 requirements TBD
 **Status**: Pending
 **Plans**: 0 plans
@@ -87,7 +98,7 @@ Plans:
 
 **Execution Order:**
 v2: Phases 1-5 → 8 → 6 → 7 (all complete, Phase 6-7 plans ready)
-v3: Phase 9 → 10 → 11 → 12 → 13 → 14
+v3: Phase 9 → 10 → 11 → 11.5 → 12 → 13 → 14
 
 | Phase | Plans | Status | Completed |
 |-------|-------|--------|-----------|
@@ -102,6 +113,7 @@ v3: Phase 9 → 10 → 11 → 12 → 13 → 14
 | 9. 3-Tier Architecture | 3/3 | Complete | 2026-04-24 |
 | 10. Rust/Tauri GUI | 4/4 | Complete | 2026-04-24 |
 | 11. YOLO Training Integration | 3/3 | Complete | 2026-04-24 |
+| 11.5 Contract Hardening | 0/0 | Pending | — |
 | 12. Backend Feature Parity | 0/0 | Discuss done | — |
 | 13. System Tray v3 | 0/0 | Pending | — |
 | 14. Production Build | 0/0 | Pending | — |
