@@ -8,7 +8,7 @@ name = "zedsu_frontend_lib"
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

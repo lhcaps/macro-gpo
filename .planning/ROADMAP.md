@@ -222,9 +222,9 @@ Exit criteria:
 **Status**: Planned — 8/8 plans ready
 **Plans**: 8 plans
 Plans:
-- [ ] 13-00-PLAN.md — Wave 1: UI design system foundation: tokens.css, components.css, app.css, color/spacing/typography/motion tokens, base component library
-- [ ] 13-01-PLAN.md — Wave 1: Tray v2: state-colored tray icon (Gray/Green/Blue/Amber/Red), operational tray menu, left/right click behavior, graceful backend stop on quit, restart backend
-- [ ] 13-02-PLAN.md — Wave 1: HUD v2 dynamic placement: remove hardcoded x=1700, dynamic monitor-aware positioning, compact/expanded HUD modes, risk/intent display, placement persists in config
+- [x] 13-00-PLAN.md — Wave 1: UI design system foundation: tokens.css, components.css, app.css, color/spacing/typography/motion tokens, base component library
+- [x] 13-01-PLAN.md — Wave 1: Tray v2: state-colored tray icon (Gray/Green/Blue/Amber/Red), operational tray menu, left/right click behavior, graceful backend stop on quit, restart backend
+- [x] 13-02-PLAN.md — Wave 1: HUD v2 dynamic placement: remove hardcoded x=1700, dynamic monitor-aware positioning, compact/expanded HUD modes, risk/intent display, placement persists in config
 - [ ] 13-03-PLAN.md — Wave 2: Operator shell layout: AppShell, sidebar navigation, top command bar, overview dashboard page, backend state polling, state normalization layer
 - [ ] 13-04-PLAN.md — Wave 2: Settings v3: Runtime, Combat Detection, Combat AI, Positions, Discord, YOLO, Logs tabs — card-based, navigable, premium
 - [ ] 13-05-PLAN.md — Wave 3: Region/position UX integration: region list with status, pick region flow, position list with status, pick position flow, test/resolve buttons

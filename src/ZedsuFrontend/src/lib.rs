@@ -19,6 +19,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState};
+use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
+use tauri::image::Image;
 
 // ============================================================================
 // Constants
@@ -314,6 +317,49 @@ impl BackendManager {
 }
 
 // ============================================================================
+// Tray Manager
+// ============================================================================
+
+/// Tray icon state
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TrayState {
+    Idle,
+    Running,
+    Paused,
+    Degraded,
+    Error,
+}
+
+/// TrayManager handles tray icon, menu, and event routing
+pub struct TrayManager {
+    pub state: Mutex<TrayState>,
+}
+
+impl TrayManager {
+    pub fn new() -> Self {
+        Self {
+            state: Mutex::new(TrayState::Idle),
+        }
+    }
+
+    pub fn set_state(&self, new_state: TrayState, app: &tauri::AppHandle) {
+        if let Some(tray) = app.tray_by_id("main-tray") {
+            let bytes: &'static [u8] = match new_state {
+                TrayState::Idle    => include_bytes!("../icons/tray_idle.png"),
+                TrayState::Running  => include_bytes!("../icons/tray_running.png"),
+                TrayState::Paused   => include_bytes!("../icons/tray_paused.png"),
+                TrayState::Degraded => include_bytes!("../icons/tray_degraded.png"),
+                TrayState::Error    => include_bytes!("../icons/tray_error.png"),
+            };
+            if let Ok(icon) = Image::from_bytes(bytes) {
+                let _ = tray.set_icon(Some(icon));
+            }
+            *self.state.lock().unwrap() = new_state;
+        }
+    }
+}
+
+// ============================================================================
 // Tauri IPC Commands
 // ============================================================================
 
@@ -519,10 +565,167 @@ pub fn run() {
             // Register F1-F4 global shortcuts
             register_hotkeys(app.handle(), backend_for_setup.clone(), hud_visible.clone());
 
-            // HUD window is configured in tauri.conf.json (visible: true, 300x80, top-right)
-            // No need to create it here -- Tauri creates it from config
+            // Tray setup — programmatic tray with menu, replacing config-based trayIcon
+            let app_h = app.handle().clone();
+            let tray_state = TrayManager::new();
+            app_h.manage(Arc::new(tray_state));
 
-            // Main window starts hidden (D-10a-01) -- don't show it on startup
+            // Build tray menu
+            let i_start = MenuItemBuilder::with_id("tray_start", "Start Bot").build(&app_h)?;
+            let i_stop = MenuItemBuilder::with_id("tray_stop", "Stop Bot").build(&app_h)?;
+            let i_pause = MenuItemBuilder::with_id("tray_pause", "Pause Bot").build(&app_h)?;
+            let i_resume = MenuItemBuilder::with_id("tray_resume", "Resume Bot").build(&app_h)?;
+            let sep1 = PredefinedMenuItem::separator(&app_h)?;
+            let i_estop = MenuItemBuilder::with_id("tray_estop", "Emergency Stop")
+                .accelerator("F1").build(&app_h)?;
+            let sep2 = PredefinedMenuItem::separator(&app_h)?;
+            let i_toggle_hud = MenuItemBuilder::with_id("tray_toggle_hud", "Toggle HUD")
+                .accelerator("F2").build(&app_h)?;
+            let i_open_shell = MenuItemBuilder::with_id("tray_open_shell", "Open Operator Shell")
+                .accelerator("F4").build(&app_h)?;
+            let i_open_logs = MenuItemBuilder::with_id("tray_open_logs", "Open Logs Folder").build(&app_h)?;
+            let i_restart = MenuItemBuilder::with_id("tray_restart", "Restart Backend").build(&app_h)?;
+            let sep3 = PredefinedMenuItem::separator(&app_h)?;
+            let i_quit = MenuItemBuilder::with_id("tray_quit", "Quit Zedsu").build(&app_h)?;
+
+            let menu = MenuBuilder::new(&app_h)
+                .items(&[
+                    &i_start as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
+                    &i_stop,
+                    &i_pause,
+                    &i_resume,
+                    &sep1,
+                    &i_estop,
+                    &sep2,
+                    &i_toggle_hud,
+                    &i_open_shell,
+                    &i_open_logs,
+                    &i_restart,
+                    &sep3,
+                    &i_quit,
+                ])
+                .build()?;
+
+            let tray_icon_bytes = include_bytes!("../icons/tray_idle.png");
+            let icon = Image::from_bytes(tray_icon_bytes)
+                .map_err(|e| format!("Failed to load tray icon: {}", e))?;
+
+            let _tray = TrayIconBuilder::with_id("main-tray")
+                .icon(icon)
+                .menu(&menu)
+                .tooltip("Zedsu — IDLE")
+                .on_menu_event(move |app, event| {
+                    match event.id().as_ref() {
+                        "tray_start" => {
+                            if let Some(bm) = app.try_state::<Arc<Mutex<BackendManager>>>() {
+                                if let Ok(mgr) = bm.lock() {
+                                    let _ = mgr.send_command("start", None);
+                                }
+                            }
+                        }
+                        "tray_stop" => {
+                            if let Some(bm) = app.try_state::<Arc<Mutex<BackendManager>>>() {
+                                if let Ok(mgr) = bm.lock() {
+                                    let _ = mgr.send_command("stop", None);
+                                }
+                            }
+                        }
+                        "tray_pause" => {
+                            if let Some(bm) = app.try_state::<Arc<Mutex<BackendManager>>>() {
+                                if let Ok(mgr) = bm.lock() {
+                                    let _ = mgr.send_command("pause", None);
+                                }
+                            }
+                        }
+                        "tray_resume" => {
+                            if let Some(bm) = app.try_state::<Arc<Mutex<BackendManager>>>() {
+                                if let Ok(mgr) = bm.lock() {
+                                    let _ = mgr.send_command("resume", None);
+                                }
+                            }
+                        }
+                        "tray_estop" => {
+                            if let Some(bm) = app.try_state::<Arc<Mutex<BackendManager>>>() {
+                                if let Ok(mgr) = bm.lock() {
+                                    let _ = mgr.send_command("emergency_stop", None);
+                                }
+                            }
+                        }
+                        "tray_toggle_hud" => {
+                            if let Some(hud) = app.get_webview_window("hud") {
+                                if hud.is_visible().unwrap_or(false) {
+                                    let _ = hud.hide();
+                                } else {
+                                    let _ = hud.show();
+                                    let _ = hud.set_focus();
+                                }
+                            }
+                        }
+                        "tray_open_shell" => {
+                            if let Some(main) = app.get_webview_window("main") {
+                                let _ = main.show();
+                                let _ = main.set_focus();
+                            }
+                        }
+                        "tray_open_logs" => {
+                            let logs_path = std::env::current_exe()
+                                .ok()
+                                .and_then(|p| p.parent().map(|p| p.join("logs")))
+                                .map(|p| p.to_string_lossy().to_string())
+                                .unwrap_or_default();
+                            if !logs_path.is_empty() {
+                                let _ = std::process::Command::new("explorer")
+                                    .arg(&logs_path)
+                                    .spawn();
+                            }
+                        }
+                        "tray_restart" => {
+                            if let Some(bm) = app.try_state::<Arc<Mutex<BackendManager>>>() {
+                                if let Ok(mut mgr) = bm.lock() {
+                                    let _ = mgr.respawn();
+                                }
+                            }
+                        }
+                        "tray_quit" => {
+                            // Graceful shutdown: stop backend first, then exit
+                            if let Some(bm) = app.try_state::<Arc<Mutex<BackendManager>>>() {
+                                if let Ok(mut mgr) = bm.lock() {
+                                    let _ = mgr.send_command("stop", None);
+                                    std::thread::sleep(std::time::Duration::from_millis(200));
+                                    mgr.stop();
+                                }
+                            }
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(move |tray, event| {
+                    match event {
+                        TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } => {
+                            if let Some(main) = tray.app_handle().get_webview_window("main") {
+                                if main.is_visible().unwrap_or(false) {
+                                    let _ = main.hide();
+                                } else {
+                                    let _ = main.show();
+                                    let _ = main.set_focus();
+                                }
+                            }
+                        }
+                        TrayIconEvent::DoubleClick { .. } => {
+                            if let Some(main) = tray.app_handle().get_webview_window("main") {
+                                let _ = main.show();
+                                let _ = main.set_focus();
+                            }
+                        }
+                        _ => {}
+                    }
+                })
+                .build(&app_h)?;
+
+            eprintln!("[ZEDSU] System tray initialized");
+
+            // Main window starts hidden (D-10a-01) — don't show it on startup
             // User can reveal via F4 or system tray
 
             Ok(())

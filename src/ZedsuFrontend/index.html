@@ -1,356 +1,126 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Zedsu</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --color-idle: #ffffff;
-            --color-scanning: #3b82f6;
-            --color-approach: #eab308;
-            --color-engaged: #ef4444;
-            --color-fleeing: #f97316;
-            --color-spectating: #eab308;
-            --color-post-match: #22c55e;
-            --color-error: #ef4444;
-            --color-muted: #9ca3af;
-            --glow-blue: rgba(59, 130, 246, 0.5);
-            --glow-red: rgba(239, 68, 68, 0.5);
-            --glow-yellow: rgba(234, 179, 8, 0.5);
-            --glow-green: rgba(34, 197, 94, 0.5);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            background: transparent;
-            font-family: 'JetBrains Mono', monospace;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-            overflow: hidden;
-        }
-
-        .hud-container {
-            width: 300px;
-            min-height: 80px;
-            padding: 12px 16px;
-            background: rgba(10, 10, 10, 0.5);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border-radius: 8px;
-            box-shadow:
-                0 0 15px rgba(0, 0, 0, 0.3),
-                0 0 10px rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .state-row {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        #state-text {
-            font-size: 20px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            transition: color 0.3s ease, text-shadow 0.3s ease;
-        }
-
-        .stats-row {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        #stats-text {
-            font-size: 12px;
-            font-weight: 400;
-            color: var(--color-muted);
-            letter-spacing: 0.3px;
-        }
-
-        .model-row {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-top: 6px;
-        }
-
-        #model-text {
-            font-size: 11px;
-            font-weight: 400;
-            letter-spacing: 0.3px;
-            color: var(--color-muted);
-        }
-
-        .model-ok {
-            color: #22c55e;
-        }
-
-        .model-warn {
-            color: #f59e0b;
-        }
-
-        .model-error {
-            color: #ef4444;
-        }
-
-        /* State-specific styles */
-        .state-idle {
-            color: var(--color-idle);
-        }
-
-        .state-scanning {
-            color: var(--color-scanning);
-            text-shadow: 0 0 10px var(--glow-blue), 0 0 20px var(--glow-blue);
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        .state-approach {
-            color: var(--color-approach);
-            text-shadow: 0 0 8px var(--glow-yellow);
-        }
-
-        .state-engaged {
-            color: var(--color-engaged);
-            text-shadow: 0 0 10px var(--glow-red), 0 0 20px var(--glow-red), 0 0 30px var(--glow-red);
-            animation: glow 2s ease-in-out infinite;
-        }
-
-        .state-fleeing {
-            color: var(--color-fleeing);
-            text-shadow: 0 0 8px rgba(249, 115, 22, 0.5);
-        }
-
-        .state-spectating {
-            color: var(--color-spectating);
-            text-shadow: 0 0 8px var(--glow-yellow);
-        }
-
-        .state-post-match {
-            color: var(--color-post-match);
-            text-shadow: 0 0 8px var(--glow-green);
-        }
-
-        .state-error {
-            color: var(--color-error);
-            text-shadow: 0 0 10px var(--glow-red);
-            animation: blink 0.8s ease-in-out infinite;
-        }
-
-        /* Animations */
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0.6;
-            }
-        }
-
-        @keyframes blink {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0;
-            }
-        }
-
-        @keyframes glow {
-            0%, 100% {
-                text-shadow: 0 0 10px var(--glow-red), 0 0 20px var(--glow-red), 0 0 30px var(--glow-red);
-            }
-            50% {
-                text-shadow: 0 0 15px var(--glow-red), 0 0 30px var(--glow-red), 0 0 45px var(--glow-red);
-            }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zedsu</title>
+  <link rel="stylesheet" href="/src/styles/tokens.css" />
+  <link rel="stylesheet" href="/src/styles/components.css" />
+  <link rel="stylesheet" href="/src/styles/app.css" />
 </head>
-<body>
-    <div class="hud-container">
-        <div class="state-row">
-            <span id="state-text" class="state-idle">[ ○ IDLE ]</span>
+<body data-mode="shell">
+
+  <!-- ======================== HUD OVERLAY ======================== -->
+  <div id="hud-overlay" class="hud-overlay" style="display:none;">
+    <div class="hud-header">
+      <span id="hud-status-dot" class="status-dot status-idle"></span>
+      <span id="hud-status-text" class="font-mono text-sm">IDLE</span>
+      <span class="hud-divider">·</span>
+      <span id="hud-combat" class="font-mono text-sm">—</span>
+      <span class="hud-divider">·</span>
+      <span id="hud-latency" class="font-mono text-sm text-cyan">0ms</span>
+    </div>
+    <div class="hud-stats">
+      <span id="hud-match" class="font-mono text-xs text-muted">—</span>
+      <span class="hud-divider-sm">·</span>
+      <span id="hud-kills" class="font-mono text-xs text-muted">Kills 0</span>
+      <span class="hud-divider-sm">·</span>
+      <span id="hud-time" class="font-mono text-xs text-muted">00:00</span>
+    </div>
+    <div class="hud-expanded" id="hud-expanded" style="display:none;">
+      <div class="hud-expanded-row">
+        <span class="hud-expanded-label">Intent</span>
+        <span id="hud-intent" class="font-mono text-xs text-cyan">—</span>
+      </div>
+      <div class="hud-expanded-row">
+        <span class="hud-expanded-label">Crowd</span>
+        <span id="hud-crowd" class="font-mono text-xs">—</span>
+      </div>
+      <div class="hud-expanded-row">
+        <span class="hud-expanded-label">YOLO</span>
+        <span id="hud-yolo" class="font-mono text-xs text-muted">—</span>
+      </div>
+    </div>
+    <div class="hud-actions">
+      <button class="hud-ctrl-btn" id="hud-toggle-expand" title="Toggle HUD Mode">&#x29E9;</button>
+      <button class="hud-ctrl-btn" id="hud-toggle-pin" title="Toggle Pin">&#x1F4CC;</button>
+    </div>
+  </div>
+
+  <!-- ======================== OPERATOR SHELL ======================== -->
+  <div id="app-shell" class="shell" style="display:none;">
+
+    <header class="shell-topbar">
+      <div class="topbar-brand">
+        <span class="brand-text">Zedsu</span>
+        <span id="topbar-status" class="status-pill status-idle">IDLE</span>
+        <span id="topbar-backend" class="backend-indicator backend-ok">Backend OK</span>
+        <span id="topbar-match" class="text-sm text-muted"></span>
+      </div>
+      <div class="shell-topbar-actions">
+        <button class="btn btn-sm btn-secondary" id="btn-hud">HUD</button>
+        <button class="btn btn-sm btn-secondary" id="btn-logs">Logs</button>
+        <button class="btn btn-sm btn-secondary" id="btn-restart">Restart</button>
+        <div class="topbar-divider"></div>
+        <button class="btn btn-primary btn-sm" id="btn-start">Start</button>
+        <button class="btn btn-sm btn-secondary" id="btn-stop">Stop</button>
+        <button class="btn btn-danger btn-sm" id="btn-estop">E-Stop</button>
+      </div>
+    </header>
+
+    <div class="shell-body">
+      <nav class="shell-sidebar">
+        <button class="nav-item active" data-page="overview">
+          <span class="nav-icon">&#x25C8;</span><span class="nav-label">Overview</span>
+        </button>
+        <button class="nav-item" data-page="combat-ai">
+          <span class="nav-icon">&#x25CE;</span><span class="nav-label">Combat AI</span>
+        </button>
+        <button class="nav-item" data-page="detection">
+          <span class="nav-icon">&#x25C9;</span><span class="nav-label">Detection</span>
+        </button>
+        <button class="nav-item" data-page="positions">
+          <span class="nav-icon">&#x2295;</span><span class="nav-label">Positions</span>
+        </button>
+        <button class="nav-item" data-page="discord">
+          <span class="nav-icon">&#x25CC;</span><span class="nav-label">Discord</span>
+        </button>
+        <button class="nav-item" data-page="yolo">
+          <span class="nav-icon">&#x2B21;</span><span class="nav-label">YOLO</span>
+        </button>
+        <button class="nav-item" data-page="logs">
+          <span class="nav-icon">&#x2630;</span><span class="nav-label">Logs</span>
+        </button>
+        <button class="nav-item" data-page="settings">
+          <span class="nav-icon">&#x2699;</span><span class="nav-label">Settings</span>
+        </button>
+      </nav>
+
+      <main class="shell-main" id="shell-main">
+        <div class="page-placeholder">
+          <div class="page-placeholder-icon">&#x25C8;</div>
+          <p>Loading...</p>
         </div>
-        <div class="stats-row">
-            <span id="stats-text">&#x23F1; 00:00 | &#x2694; Kills: 0 | &#x26A1; 0ms</span>
-        </div>
-        <div class="model-row">
-            <span id="model-text" class="model-error">&#x1F9D0; No model</span>
-        </div>
+      </main>
     </div>
 
-    <script>
-        // FSM state to emoji mapping
-        const STATE_EMOJI = {
-            'IDLE': '○',
-            'SCANNING': '🔵',
-            'APPROACH': '🟡',
-            'ENGAGED': '🔴',
-            'FLEEING': '🟠',
-            'SPECTATING': '🟡',
-            'POST_MATCH': '🟢',
-            'ERROR': '❌'
-        };
+  </div>
 
-        // FSM state to CSS class mapping
-        const STATE_CLASS = {
-            'IDLE': 'state-idle',
-            'SCANNING': 'state-scanning',
-            'APPROACH': 'state-approach',
-            'ENGAGED': 'state-engaged',
-            'FLEEING': 'state-fleeing',
-            'SPECTATING': 'state-spectating',
-            'POST_MATCH': 'state-post-match',
-            'ERROR': 'state-error'
-        };
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
 
-        // Local tracking state
-        let startTime = null;
-        let elapsedInterval = null;
-        let lastDetectionMs = 0;
+  <!-- Confirm dialog -->
+  <div id="confirm-overlay" class="confirm-overlay" style="display:none;">
+    <div class="confirm-dialog">
+      <h3 id="confirm-title">Confirm</h3>
+      <p id="confirm-message"></p>
+      <div class="confirm-actions">
+        <button class="btn btn-sm btn-secondary" id="confirm-cancel">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="confirm-ok">Confirm</button>
+      </div>
+    </div>
+  </div>
 
-        // DOM elements
-        const stateText = document.getElementById('state-text');
-        const statsText = document.getElementById('stats-text');
-        const modelText = document.getElementById('model-text');
-
-        // Format elapsed time as MM:SS
-        function formatElapsed(startMs) {
-            if (!startMs) return '00:00';
-            const elapsed = Date.now() - startMs;
-            const totalSeconds = Math.floor(elapsed / 1000);
-            const minutes = Math.floor(totalSeconds / 60);
-            const seconds = totalSeconds % 60;
-            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        }
-
-        // Update state display
-        function updateStateDisplay(combatState, statusColor) {
-            const emoji = STATE_EMOJI[combatState] || '○';
-            const stateClass = STATE_CLASS[combatState] || 'state-idle';
-
-            // Remove all state classes
-            stateText.className = '';
-            // Add new state class
-            stateText.classList.add(stateClass);
-            // Set text content
-            stateText.textContent = `[ ${emoji} ${combatState} ]`;
-        }
-
-        // Update model quality display
-        function updateModelDisplay(yoloModel) {
-            const modelEl = modelText;
-            if (!modelEl) return;
-
-            const available = yoloModel && yoloModel.available;
-            const qualityScore = yoloModel && yoloModel.quality_score;
-
-            if (!available) {
-                modelEl.textContent = '\uD83E\uDDD0 No model';
-                modelEl.className = 'model-error';
-            } else if (qualityScore !== null && qualityScore !== undefined) {
-                const pct = Math.round(qualityScore * 100);
-                if (qualityScore < 0.60) {
-                    modelEl.textContent = `\uD83D\uDCA1 Quality: ${pct}%`;
-                    modelEl.className = 'model-warn';
-                } else {
-                    modelEl.textContent = '\u2705 Model OK';
-                    modelEl.className = 'model-ok';
-                }
-            } else {
-                modelEl.textContent = '\u2705 Model OK';
-                modelEl.className = 'model-ok';
-            }
-        }
-
-        // Update stats display
-        function updateStatsDisplay(kills, detectionMs) {
-            const elapsed = formatElapsed(startTime);
-            lastDetectionMs = detectionMs || lastDetectionMs;
-            statsText.textContent = `⏱ ${elapsed} | ⚔ Kills: ${kills || 0} | ⚡ ${lastDetectionMs}ms`;
-        }
-
-        // Update elapsed time periodically
-        function startElapsedTimer() {
-            if (elapsedInterval) return;
-            elapsedInterval = setInterval(() => {
-                if (startTime) {
-                    const elapsed = formatElapsed(startTime);
-                    const currentText = statsText.textContent;
-                    const killsMatch = currentText.match(/⚔ Kills: (\d+)/);
-                    const kills = killsMatch ? killsMatch[1] : '0';
-                    statsText.textContent = `⏱ ${elapsed} | ⚔ Kills: ${kills} | ⚡ ${lastDetectionMs}ms`;
-                }
-            }, 1000);
-        }
-
-        // Poll backend state
-        async function pollBackendState() {
-            try {
-                const tauri = window.__TAURI__;
-                if (!tauri || !tauri.core) {
-                    console.warn('[HUD] Tauri API not available');
-                    return;
-                }
-
-                const hudState = await tauri.core.invoke('get_hud_state');
-
-                if (hudState) {
-                    // Check if this is a start event (transitioning to running)
-                    if (hudState.running && !startTime) {
-                        startTime = Date.now();
-                        startElapsedTimer();
-                    } else if (!hudState.running && startTime) {
-                        // Stopped - keep timer running but note the state
-                    }
-
-                    // Update state display
-                    updateStateDisplay(hudState.combat_state, hudState.status_color);
-
-                    // Update stats display
-                    const stats = hudState.stats || {};
-                    updateStatsDisplay(stats.kills, stats.detection_ms);
-
-                    // Update YOLO model quality display
-                    if (hudState.yolo_model) {
-                        updateModelDisplay(hudState.yolo_model);
-                    }
-                }
-            } catch (err) {
-                // Show error state gracefully
-                const currentClass = stateText.className;
-                if (!currentClass.includes('state-error')) {
-                    stateText.className = 'state-error';
-                    stateText.textContent = '[ ❌ ERROR ]';
-                }
-                console.warn('[HUD] Failed to poll backend state:', err);
-            }
-        }
-
-        // Initial state - show IDLE
-        function initializeState() {
-            stateText.className = 'state-idle';
-            stateText.textContent = '[ ○ IDLE ]';
-            statsText.textContent = '⏱ 00:00 | ⚔ Kills: 0 | ⚡ 0ms';
-        }
-
-        // Start polling on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeState();
-            // Poll every 1 second
-            setInterval(pollBackendState, 1000);
-        });
-    </script>
+  <script type="module" src="/src/app.js"></script>
 </body>
 </html>
