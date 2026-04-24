@@ -5,15 +5,15 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12.0 — Contract Cleanup & Config Hygiene (hotfix applied; verification pending)
-Active subphase: 12.0 Contract Cleanup & Config Hygiene
+**Current focus:** Phase 12.1 — Region & Position Service Layer (context gathered)
+Active subphase: 12.1 Region & Position Service Layer
 
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.0 complete)
-Phase: 12.1 (Region & Position Service Layer) — pending discuss/plan
-Status: Phase 12.0 complete (6/7 PASS); ready for Phase 12.1 discuss
-Next: Discuss Phase 12.1 boundary → plan → execute
+Phase: 12.1 (Region & Position Service Layer) — context gathered, ready for planning
+Status: Phase 12.0 complete (6/7 PASS); Phase 12.1 context gathered; next: plan
+Next: Plan Phase 12.1 → execute
 
 Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.0 complete (12.1 pending)
 
