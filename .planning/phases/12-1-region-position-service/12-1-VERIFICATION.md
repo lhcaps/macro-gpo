@@ -150,7 +150,7 @@ assert "test_region" in reloaded["combat_regions_v2"], "Region not persisted!"
 print("V5 PASS: region persists across save+load")
 ```
 
-Criteria: region added to config.json survives load_config().
+Criteria: config.json on disk contains the region after save_config() — CONFIG_FILE path is resolved relative to config.py location (not cwd), so this test works regardless of working directory.
 
 ### V6: Persistence — Position survives save + load
 
@@ -165,6 +165,8 @@ reloaded = load_config()
 assert "test_pos" in reloaded["combat_positions"], "Position not persisted!"
 print("V6 PASS: position persists across save+load")
 ```
+
+Criteria: config.json on disk contains the position after save_config() — CONFIG_FILE path is resolved relative to config.py location (not cwd), so this test works regardless of working directory.
 
 ### V7: get_search_region returns MSS dict
 
