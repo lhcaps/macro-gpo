@@ -45,20 +45,40 @@ pub struct BackendState {
     pub status_color: String,
     #[serde(rename = "logs")]
     pub logs: Vec<serde_json::Value>,
-    #[serde(rename = "combat")]
-    pub combat: HashMap<String, serde_json::Value>,
-    #[serde(rename = "vision")]
-    pub vision: HashMap<String, serde_json::Value>,
-    #[serde(rename = "stats")]
-    pub stats: HashMap<String, serde_json::Value>,
-    #[serde(rename = "config")]
-    pub config: HashMap<String, serde_json::Value>,
+    // D-11.5c-02: canonical HUD contract struct
+    #[serde(rename = "hud")]
+    pub hud: HudContract,
+}
+
+/// D-11.5c-01: Canonical HUD contract — matches Backend /state.hud top-level field
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HudContract {
+    #[serde(rename = "combat_state")]
+    pub combat_state: String,
+    #[serde(rename = "kills")]
+    pub kills: i32,
+    #[serde(rename = "match_count")]
+    pub match_count: i32,
+    #[serde(rename = "detection_ms")]
+    pub detection_ms: i32,
+    #[serde(rename = "elapsed_sec")]
+    pub elapsed_sec: i64,
+    #[serde(rename = "status_color")]
+    pub status_color: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthResponse {
     #[serde(rename = "status")]
     pub status: String,
+    #[serde(rename = "backend")]
+    pub backend: String,
+    #[serde(rename = "core")]
+    pub core: String,
+    #[serde(rename = "uptime_sec")]
+    pub uptime_sec: i64,
+    #[serde(rename = "version")]
+    pub version: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -314,34 +334,16 @@ fn get_hud_state(
     let manager = backend.lock().map_err(|e| e.to_string())?;
     let state = manager.get_state()?;
 
-    // Extract combat state (default to IDLE if not present)
+    // D-11.5c-02: Read from canonical state.hud object
+    // Backend now returns state.hud with combat_state at top level
     let combat_state = state
-        .combat
-        .get("combat_state")
-        .and_then(|v| v.as_str())
-        .unwrap_or("IDLE")
-        .to_string();
+        .hud
+        .combat_state
+        .clone();
 
-    // Extract stats
-    let kills = state
-        .stats
-        .get("kills")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0) as i32;
-
-    // Extract detection_ms from vision (if available)
-    let detection_ms = state
-        .vision
-        .get("detection_ms")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0) as i32;
-
-    // Extract elapsed from vision (if available)
-    let elapsed = state
-        .vision
-        .get("elapsed")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0);
+    let kills = state.hud.kills;
+    let detection_ms = state.hud.detection_ms;
+    let elapsed = state.hud.elapsed_sec;
 
     Ok(HudState {
         combat_state,
@@ -350,7 +352,7 @@ fn get_hud_state(
             detection_ms,
             elapsed,
         },
-        status_color: state.status_color,
+        status_color: state.status_color.clone(),
         running: state.running,
     })
 }

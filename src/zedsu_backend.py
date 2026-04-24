@@ -15,7 +15,7 @@ import shutil
 import sys
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # D-11.5a-02: emergency_stop releases all held game keys
 import pydirectinput
@@ -474,15 +474,31 @@ class ZedsuHandler(BaseHTTPRequestHandler):
         pass  # Silence default stderr logging
 
     def do_GET(self):
-        global _yolo_quality_score, _yolo_quality_warning, _yolo_quality_error, _app_config
+        global _yolo_quality_score, _yolo_quality_warning, _yolo_quality_error, _app_config, _start_time
 
         parsed = urlparse(self.path)
 
         if parsed.path == '/health':
-            # per D-09g-01: health check
-            with _state_lock:
-                alive = _core_instance is not None and _core_instance._running
-            self._send_json({"status": "ok" if alive else "down"})
+            # D-11.5b-01: health check returns "ok" when HTTP server alive.
+            # HTTP server alive = this process is running (independent of bot state).
+            # Backend process is healthy even when bot is idle/stopped.
+            global _start_time
+            core_state = "idle"
+            if _core_instance is not None and _core_instance._running:
+                core_state = "running"
+            elif _core_instance is not None:
+                core_state = "stopped"
+            try:
+                uptime = int(time.time() - _start_time)
+            except Exception:
+                uptime = 0
+            self._send_json({
+                "status": "ok",
+                "backend": "ok",
+                "core": core_state,
+                "uptime_sec": uptime,
+                "version": "0.1.0"
+            })
             return
 
         if parsed.path == '/state':
@@ -518,17 +534,39 @@ class ZedsuHandler(BaseHTTPRequestHandler):
             yolo_model_info = _get_yolo_model_info()
             dataset_stats = _get_yolo_dataset_stats()
 
+            # D-11.5c-01: canonical state format with hud object at top level
+            combat_state = "IDLE"
+            kills = 0
+            match_count = 0
+            detection_ms = 0
+            elapsed_sec = 0
+
+            if core_state:
+                combat_state = core_state.get("combat_state", "IDLE")
+                kills = core_state.get("kills", 0)
+                match_count = core_state.get("match_count", 0)
+
             state = {
                 "running": _core_instance is not None and _core_instance._running,
                 "status": status,
                 "status_color": status_color,
                 "logs": logs,
-                "combat": core_state.get("combat", {}),
-                "vision": core_state.get("vision", {}),
+                # D-11.5c-01: canonical hud object (per D-11.5c-01)
+                "hud": {
+                    "combat_state": combat_state,
+                    "kills": kills,
+                    "match_count": match_count,
+                    "detection_ms": detection_ms,
+                    "elapsed_sec": elapsed_sec,
+                    "status_color": status_color,
+                },
+                # Legacy paths retained for backward compat
+                "combat": core_state.get("combat", {}) if core_state else {},
+                "vision": core_state.get("vision", {}) if core_state else {},
                 "stats": {
-                    "combat_state": core_state.get("combat_state", "IDLE"),
-                    "kills": core_state.get("kills", 0),
-                    "match_count": core_state.get("match_count", 0),
+                    "combat_state": combat_state,
+                    "kills": kills,
+                    "match_count": match_count,
                 },
                 "config": config_for_frontend,
                 "yolo_model": {
@@ -743,16 +781,13 @@ class ZedsuHandler(BaseHTTPRequestHandler):
 
 
 # ============================================================================
-# Server setup (ThreadingMixIn from Bridger pattern)
+# Server setup
 # ============================================================================
 
-class ThreadingMixIn:
-    daemon_threads = True
-    blocking_mode = False
-
-
-class ZedsuHTTPServer(ThreadingMixIn, HTTPServer):
+# D-11.5e-01: Use real ThreadingHTTPServer from stdlib (Python 3.7+)
+class ZedsuHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
+    daemon_threads = True
 
     def handle_error(self, request, client_address):
         pass  # Suppress noise on broken connections

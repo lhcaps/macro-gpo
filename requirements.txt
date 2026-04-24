@@ -6,3 +6,5 @@ pydirectinput
 requests
 keyboard
 pywin32
+mss
+numpy
