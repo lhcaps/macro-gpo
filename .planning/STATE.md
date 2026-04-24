@@ -12,8 +12,8 @@ Active subphase: 12.0 Contract Cleanup & Config Hygiene
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-11.5 complete, Phase 12.0 in progress)
 Phase: 12.0 (Contract Cleanup & Config Hygiene)
-Status: P0 fixes applied to source; awaiting plan creation and execution
-Next: Phase 12.0 — 3 cleanup plans then Phase 12.1
+Status: P0 hotfixes applied; awaiting formal 12.0 verification
+Next: Complete 12-0-VERIFICATION, then discuss/plan Phase 12.1
 
 Progress: [▓▓▓▓▓▓▓▓▓░] v2 complete, v3 Phase 9-11.5 complete, Phase 12.0 hotfix applied, verification pending
 
@@ -160,4 +160,5 @@ Brutal code review of Phase 11.5 found 4 P0 issues that must be fixed before Pha
 
 All fixes verified with python -m py_compile (exit 0).
 
-Next action: Create Phase 12.0 plans (12-0-01, 12-0-02, 12-0-03) and execute.
+Phase 12.0 HOTFIX docs created and pushed to GitHub (commit 7cf6beb).
+Next action: Complete 12-0-VERIFICATION (7-step smoke checklist), then discuss Phase 12.1.
