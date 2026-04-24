@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import os
 import random
 import time
 from enum import Enum, auto
+from typing import Optional
 
 import pyautogui
 import pydirectinput
@@ -32,6 +35,10 @@ from src.utils.windows import (
     get_window_rect,
     is_window_active,
 )
+# Phase 12.5: Combat AI telemetry
+from src.services.match_telemetry import MatchTelemetry, CombatTick, MatchSummary
+# Phase 12.5: Target memory
+from src.core.target_memory import TargetMemory, TargetDecision
 
 
 # ============================================================
@@ -81,6 +88,8 @@ class CombatStateMachine:
         self._last_kill_detected = False
         self._last_yolo_scan_time = 0  # Phase 8: throttle YOLO scans
         self._kill_milestone_sent: dict[int, bool] = {}  # Phase 12.4: per-match sent flags
+        # Phase 12.5: Target memory reference (shared with engine)
+        self._target_memory: Optional[TargetMemory] = None
 
         cfg = engine.app.config.get("combat_settings", {})
         self.disengage_timeout_sec = cfg.get("disengage_timeout_sec", 5.0)
@@ -88,6 +97,8 @@ class CombatStateMachine:
         self.dodge_chance = cfg.get("dodge_chance", 0.12)
         self.camera_scan_interval = cfg.get("camera_scan_interval", 0.5)
         self.kill_steal_resilient = cfg.get("kill_steal_resilient", True)
+        # Phase 12.5: Share target memory with engine
+        self._target_memory = engine._target_memory
 
     @property
     def state_name(self):
@@ -100,6 +111,11 @@ class CombatStateMachine:
         self.engine.log(f"[COMBAT] {old.name} → {new_state.name}")
         self._consecutive_engaged_frames = 0
         self._consecutive_no_signal_frames = 0
+        # Phase 12.5: Record state transition
+        try:
+            self.engine._telemetry.record_transition(old.name, new_state.name, "state_transition")
+        except Exception:
+            pass  # Non-fatal
 
     def update(self):
         """Called every combat tick (~500ms). Returns action dict for engine."""
@@ -172,7 +188,68 @@ class CombatStateMachine:
         if target != self.state:
             self._transition_to(target)
 
-        return self._execute_state(signals, now)
+        action = self._execute_state(signals, now)
+
+        # Phase 12.5: Update target memory
+        try:
+            if self._target_memory is not None:
+                screen_region = self.engine.get_search_region()
+                screen_w = (screen_region[2] - screen_region[0]) if screen_region else 1920
+                screen_h = (screen_region[3] - screen_region[1]) if screen_region else 1080
+                screen_center = (screen_w / 2, screen_h / 2)
+                screen_size = (screen_w, screen_h)
+
+                # Get YOLO detections for target memory
+                yolo_detections = []
+                if self.state == CombatState.SCANNING:
+                    yolo_result = self._yolo_scan_for_enemy()
+                    if yolo_result and "raw_detections" in yolo_result:
+                        yolo_detections = yolo_result.get("raw_detections", [])
+
+                target_decision = self._target_memory.update(
+                    yolo_detections=yolo_detections,
+                    signals=signals,
+                    screen_center=screen_center,
+                    screen_size=screen_size,
+                )
+
+                action["target_memory"] = {
+                    "has_target": target_decision.has_target,
+                    "target_visible": target_decision.target_visible,
+                    "confidence_ema": target_decision.confidence_ema,
+                    "lost_ms": target_decision.lost_ms,
+                    "center_error_x": target_decision.center_error_x,
+                    "center_error_y": target_decision.center_error_y,
+                    "reason": target_decision.reason,
+                }
+        except Exception:
+            pass  # Non-fatal
+
+        # Phase 12.5: Record combat tick
+        try:
+            target_info = action.get("target_memory", {})
+            tick = CombatTick(
+                ts=time.time(),
+                t_match=time.time() - self.engine.match_start_time if self.engine.match_start_time else 0.0,
+                match_id=getattr(self.engine.app, 'match_count', 0),
+                state=self.state.name,
+                action=action.get("action", "unknown"),
+                signals=signals,
+                target={
+                    "visible": target_info.get("target_visible", False),
+                    "confidence_ema": target_info.get("confidence_ema", 0.0),
+                    "lost_ms": target_info.get("lost_ms", 0.0),
+                    "center_error_x": target_info.get("center_error_x", 0.0),
+                    "center_error_y": target_info.get("center_error_y", 0.0),
+                },
+                risk={},   # Filled by plan 03
+                decision=target_info,
+            )
+            self.engine._telemetry.record_tick(tick)
+        except Exception:
+            pass  # Non-fatal
+
+        return action
 
     def _compute_target_state(self, enemy_nearby, in_combat, hit_confirmed, player_hp_low, now):
         """Compute the target state based on signals."""
@@ -335,6 +412,7 @@ class CombatStateMachine:
             "confidence": conf,
             "box": (x, y, w, h),
             "center_distance": self._center_distance((x, y, w, h), haystack_rgb.shape),
+            "raw_detections": detections,  # Phase 12.5: for target memory
         }
 
     def _select_nearest_to_center(self, detections, image_shape):
@@ -403,6 +481,11 @@ class BotEngine:
         self._combat_sm = None
         self._combat_tick_interval = 0.5
         self._last_combat_tick = 0
+
+        # Phase 12.5: Combat AI telemetry singleton
+        self._telemetry = MatchTelemetry.get_instance(getattr(app, 'config', {}))
+        # Phase 12.5: Target memory
+        self._target_memory = TargetMemory(getattr(app, 'config', {}))
 
     def start(self):
         self.stop_requested = False
@@ -591,6 +674,18 @@ class BotEngine:
         self.app.match_count += 1
         self.app.update_match_count()
 
+        # Phase 12.5: Start match telemetry
+        try:
+            self._telemetry.start_match(self.app.match_count)
+        except Exception:
+            pass  # Non-fatal
+
+        # Phase 12.5: Reset target memory on new match
+        try:
+            self._target_memory.reset()
+        except Exception:
+            pass  # Non-fatal
+
         if reason:
             self.log(f"Match #{self.app.match_count} started ({reason}).")
         else:
@@ -626,7 +721,13 @@ class BotEngine:
                     message="You died",
                     match_id=self.app.match_count,
                     include_screenshot=True,
-                    metadata={"screenshot_region": region},
+                    metadata={
+                        "screenshot_region": region,
+                        # Phase 12.5: Attach last known context from telemetry
+                        "last_state": "unknown",
+                        "last_signals": {},
+                        "last_risk": {},
+                    },
                 )
                 self.log(f"[COMBAT] Death event dispatched (source: {source}).")
         except Exception:
@@ -1607,6 +1708,21 @@ class BotEngine:
                 )
                 self.log(f"Discord match_end event dispatched (match #{self.app.match_count}).")
                 notification_sent = True
+
+                # Phase 12.5: Finish telemetry
+                try:
+                    summary = MatchSummary(
+                        match_id=self.app.match_count,
+                        started_at=self.match_start_time,
+                        ended_at=time.time(),
+                        duration_sec=max(0, min(3600, int(time.time() - self.match_start_time))),
+                        kills=kills,
+                        exit_state=self._combat_sm.state.name if self._combat_sm else "unknown",
+                    )
+                    self._telemetry.finish_match(summary)
+                except Exception:
+                    pass  # Non-fatal
+
                 self.sleep(0.8)
 
             if open_visible:

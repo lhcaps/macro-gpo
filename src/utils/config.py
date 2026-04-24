@@ -217,6 +217,33 @@ DEFAULT_CONFIG = {
         },
         "kill_milestones": [5, 10, 20],
     },
+    # Phase 12.5: Combat AI Intelligence Foundation
+    "combat_ai": {
+        "enabled": True,
+        # Telemetry
+        "telemetry_enabled": True,
+        "telemetry_sample_rate": 1.0,
+        "telemetry_dir": "runs/matches",
+        "snapshot_on_death": True,
+        # Target memory
+        "target_memory_enabled": True,
+        "target_lost_grace_sec": 2.0,
+        "target_switch_penalty": 0.35,
+        "target_center_deadzone_px": 90,
+        # Situation / risk
+        "situation_model_enabled": True,
+        "crowd_risk_threshold": 0.70,
+        "nearby_enemy_crowd_count": 2,
+        "visible_enemy_crowd_count": 3,
+        # Movement
+        "movement_policy": "scored",
+        "random_movement_fallback": True,
+        "repeated_action_penalty": 0.15,
+        "reposition_crowd_threshold": 0.70,
+        "flee_crowd_hp_threshold": 0.55,
+        # Death classifier
+        "death_classifier_enabled": True,
+    },
 }
 
 

@@ -28,5 +28,9 @@ from .discord_event_service import (
     reset_kill_dedupe,
     capture_screenshot_png_bytes,
     send_discord_event,
-    test_webhook_blocking,
+)
+from .match_telemetry import (
+    MatchTelemetry,
+    CombatTick,
+    MatchSummary,
 )
