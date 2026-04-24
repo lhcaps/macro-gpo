@@ -99,13 +99,13 @@ Exit criteria:
 ### Phase 12.1: Region & Position Service Layer
 **Goal:** Create typed service helpers (list/set/delete/resolve) for regions and positions before building overlay UI. Keeps service logic decoupled from UI.
 **Depends on:** Phase 12.0
-**Status**: Replanned (2026-04-24) — all blockers fixed before execution
+**Status**: Complete (2026-04-24) — 11/11 verification checks PASS
 **Plans**: 4 plans (wave: 1A = 01+02 parallel, 1B = 03 depends on 01+02, VERIFICATION after)
 Plans:
-- [ ] 12-1-01-PLAN.md — Region model: list_regions(), set_region(), delete_region(), resolve_region(), resolve_all_regions(), validate_region_record(). Object schema `{area, kind, threshold, enabled, label}`. Service does NOT call save_config (backend owns persistence).
-- [ ] 12-1-02-PLAN.md — Position model: list_positions(), set_position(), delete_position(), resolve_position(), resolve_all_positions(), validate_position_record(). Full metadata schema `{x, y, label, enabled, captured_at, window_title}`. Service does NOT call save_config.
-- [ ] 12-1-03-PLAN.md — Backend commands: 11 actions (get_regions, set_region, delete_region, resolve_region, resolve_all_regions, get_positions, set_position, delete_position, resolve_position, resolve_all_positions, get_search_region). Backend owns save_config+load_config round-trip after mutations. Creates src/services/__init__.py. Closes Phase 12.0 V6 deferral.
-- [ ] 12-1-VERIFICATION.md — Smoke (compile, import), schema contract assertions, persistence check, get_search_region MSS dict, secret regression, all 11 commands present, no save_config in services, backend reloads after mutations.
+- [x] 12-1-01-PLAN.md — Region model: list_regions(), set_region(), delete_region(), resolve_region(), resolve_all_regions(), validate_region_record(). Object schema `{area, kind, threshold, enabled, label}`. Service does NOT call save_config (backend owns persistence).
+- [x] 12-1-02-PLAN.md — Position model: list_positions(), set_position(), delete_position(), resolve_position(), resolve_all_positions(), validate_position_record(). Full metadata schema `{x, y, label, enabled, captured_at, window_title}`. Service does NOT call save_config.
+- [x] 12-1-03-PLAN.md — Backend commands: 11 actions (get_regions, set_region, delete_region, resolve_region, resolve_all_regions, get_positions, set_position, delete_position, resolve_position, resolve_all_positions, get_search_region). Backend owns save_config+load_config round-trip after mutations. Creates src/services/__init__.py. Closes Phase 12.0 V6 deferral.
+- [x] 12-1-VERIFICATION.md — Smoke (compile, import), schema contract assertions, persistence check, get_search_region MSS dict, secret regression, all 11 commands present, no save_config in services, backend reloads after mutations.
 
 Exit criteria:
 - Region stored as object `{area, kind, threshold, enabled, label}` — NOT raw coords list
@@ -306,7 +306,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 11. YOLO Training Integration | 3/3 | Complete | 2026-04-24 |
 | 11.5 Contract Hardening | 3/3 | Complete | 2026-04-24 |
 | 12.0 Contract Cleanup | 3/3 | Complete (6/7 PASS) | 2026-04-24 |
-| 12.1 Region & Position Service | 3/3 | Pending | — |
+| 12.1 Region & Position Service | 4/4 | Complete | 2026-04-24 |
 | 12.2 Smart Region Selector | 1/1 | Pending | — |
 | 12.3 Combat Position Picker | 1/1 | Pending | — |
 | 12.4 Discord Event System | 1/1 | Pending | — |

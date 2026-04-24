@@ -263,17 +263,17 @@ Expected: at least 4 occurrences each (set/delete for region and position).
 
 ## Status
 
-- [ ] V1: Compile check
-- [ ] V2: Import check
-- [ ] V3: Region schema contract
-- [ ] V4: Position schema contract
-- [ ] V5: Region persistence
-- [ ] V6: Position persistence
-- [ ] V7: get_search_region MSS dict
-- [ ] V8: Secret regression
-- [ ] V9: 11 commands present
-- [ ] V10: No save_config in services
-- [ ] V11: Backend reloads after mutation
+- [x] V1: Compile check
+- [x] V2: Import check
+- [x] V3: Region schema contract
+- [x] V4: Position schema contract
+- [x] V5: Region persistence
+- [x] V6: Position persistence
+- [x] V7: get_search_region MSS dict
+- [x] V8: Secret regression
+- [x] V9: 11 commands present
+- [x] V10: No save_config in services
+- [x] V11: Backend reloads after mutation
 
 **Verification date:** 2026-04-24
-**Result:** pending
+**Result:** 11/11 PASS
