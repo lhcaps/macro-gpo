@@ -91,6 +91,12 @@ class RegionSelectorOverlay:
         if rect is None:
             self.result_data = {"action": "error", "message": "Window not found"}
             self.result_event.set()
+            # Clean up the Tk root that was created before rect check
+            try:
+                root.quit()
+                root.destroy()
+            except Exception:
+                pass
             return
 
         self._win_left, self._win_top, self._win_right, self._win_bottom = rect
