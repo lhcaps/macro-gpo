@@ -5,7 +5,8 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12 — ZedsuBackend Feature Parity (discuss done, ready for planning)
+**Current focus:** Phase 12.0 — Contract Cleanup & Config Hygiene (hotfix applied; verification pending)
+Active subphase: 12.0 Contract Cleanup & Config Hygiene
 
 ## Current Position
 
@@ -14,7 +15,7 @@ Phase: 12.0 (Contract Cleanup & Config Hygiene)
 Status: P0 fixes applied to source; awaiting plan creation and execution
 Next: Phase 12.0 — 3 cleanup plans then Phase 12.1
 
-Progress: [▓▓▓▓▓▓▓▓▓░] v2 complete, v3 Phase 9-11.5 complete, Phase 12.0 P0 fixes done, Phase 12.0 plans pending
+Progress: [▓▓▓▓▓▓▓▓▓░] v2 complete, v3 Phase 9-11.5 complete, Phase 12.0 hotfix applied, verification pending
 
 ## Accumulated Context
 

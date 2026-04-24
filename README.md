@@ -15,7 +15,7 @@ ZedsuFrontend/ (Rust/Tauri 2.x)
 src/zedsu_backend.py (Python/PyInstaller)
     └─── HTTP API server (port 9761)
     └─── Config management, Discord webhook, region selectors
-    └─── Launches ZedsuCore in daemon thread
+    └─── Starts idle; launches ZedsuCore only after start/toggle command
 
 src/zedsu_core.py (Python)
     └─── Pure bot logic — no GUI imports
@@ -76,9 +76,13 @@ src/ZedsuFrontend/target/release/zedsu_frontend.exe
 
 **Standalone:**
 ```bash
+# Legacy Tkinter build (Phase 14+ will replace this)
 pip install pyinstaller
 python build_exe.py
 # Output: dist/Zedsu.exe
+
+# v3 production packaging (Phase 14 pending):
+# Tauri frontend + PyInstaller backend as separate executables
 ```
 
 ### First Run Setup
@@ -108,7 +112,7 @@ python build_exe.py
 - Phase 9: 3-Tier Architecture Revamp ✓
 - Phase 10: Modern Rust/Tauri GUI ✓
 - Phase 11: YOLO Training Integration ✓
-- Phase 12: ZedsuBackend Feature Parity — in progress
+- Phase 12: Operator Targeting & Notification Controls — in progress
 - Phase 13: System Tray Integration (v3)
 - Phase 14: Production Build & Packaging
 

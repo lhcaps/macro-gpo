@@ -486,6 +486,21 @@ class ZedsuHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # Silence default stderr logging
 
+    def _sanitize_config(self, config: dict) -> dict:
+        """Strip webhook secrets before sending config to frontend (Phase 12.0)."""
+        has_webhook = bool(
+            config.get("discord_events", {}).get("webhook_url") or
+            config.get("discord_webhook") or
+            config.get("discord_webhook_url")
+        )
+        config.pop("discord_webhook", None)
+        config.pop("discord_webhook_url", None)
+        if "discord_events" in config:
+            config["discord_events"] = dict(config["discord_events"])
+            config["discord_events"].pop("webhook_url", None)
+            config["discord_events"]["has_webhook"] = has_webhook
+        return config
+
     def do_GET(self):
         global _yolo_quality_score, _yolo_quality_warning, _yolo_quality_error, _app_config, _start_time
 
@@ -650,7 +665,9 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                 global _app_config
                 from src.utils.config import load_config
                 _app_config = load_config()
-                self._send_json({"status": "ok", "config": dict(_app_config)})
+                # Sanitize secrets before responding (Phase 12.0: secret-leak fix)
+                safe_config = self._sanitize_config(dict(_app_config))
+                self._send_json({"status": "ok", "config": safe_config})
 
             elif action == "save_config":
                 from src.utils.config import save_config
@@ -700,7 +717,9 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                 # Persist to disk and reload normalized version
                 save_config(_app_config)
                 _app_config = load_config()
-                self._send_json({"status": "ok", "config": dict(_app_config)})
+                # Sanitize secrets before responding (Phase 12.0: secret-leak fix)
+                safe_config = self._sanitize_config(dict(_app_config))
+                self._send_json({"status": "ok", "config": safe_config})
 
             # Phase 11: YOLO capture commands
             elif action == "yolo_capture_start":

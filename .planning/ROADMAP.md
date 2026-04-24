@@ -42,7 +42,7 @@ Plans:
 
 ### Phase 10: Modern Rust/Tauri GUI
 **Goal:** Build the Tauri 2.x WebView GUI replacing Tkinter app.py. Process supervisor, transparent overlay, hotkey management, state polling from Backend.
-**Depends on**: Phase 9
+**Depends on:** Phase 9
 **Requirements**: New v3 requirements TBD
 **Status**: Complete — cargo check: PASS, cargo build --release: PASS, binary: 10.77 MB
 **Plans**: 4 plans (all complete)
@@ -54,24 +54,13 @@ Plans:
 
 ### Phase 11: YOLO Training Integration
 **Goal:** Enhance Phase 8 YOLO training workflow with the improved approach from Bridger's reference. Better dataset collection UI, training pipeline automation, ONNX export.
-**Depends on**: Phase 9
+**Depends on:** Phase 9
 **Requirements**: OPER-36, OPER-37 (existing)
 **Status**: Complete (2026-04-24)
 **Plans**: 3 plans across 3 waves
 - [x] 11-01-PLAN.md — Wave 1: Hybrid data collection (toggle capture + dataset helpers)
 - [x] 11-02-PLAN.md — Wave 2: Training CLI (scripts/train_yolo.py)
 - [x] 11-03-PLAN.md — Wave 3: Model management + HUD integration
-
-### Phase 11.5: Contract & Runtime Hardening
-**Goal:** Lock the 3-tier contract before Phase 12 adds features. Fix 11 verified blockers: frontend/backend command mismatch (F1/F3), /health semantics, /state.hud canonical format, backend auto-start, ThreadingHTTPServer, find_and_click signature, click_saved_coordinate import, requirements.txt, YOLO parser/NMS, validation recursive dataset, and config schema. All blockers verified against source code.
-**Depends on**: Phase 9, Phase 10
-**Requirements**: New hardening requirements TBD
-**Status**: Complete
-**Plans**: 3 plans
-Plans:
-- [x] 11-5-01-PLAN.md — Wave 1: Backend Contract Core (toggle, emergency_stop, safe_find_and_click, click_saved_coordinate, no auto-start)
-- [x] 11-5-02-PLAN.md — Wave 2: State Contract + HTTP Server (/health, /state.hud, ThreadingHTTPServer, requirements.txt)
-- [x] 11-5-03-PLAN.md — Wave 3: Vision + Config (YOLO parser/NMS, recursive validation, config schema v2)
 
 ### Phase 11.5: Contract & Runtime Hardening
 **Goal:** Lock the 3-tier contract before Phase 12 adds features. Fix 11 verified blockers: frontend/backend command mismatch (F1/F3), /health semantics, /state.hud canonical format, backend auto-start, ThreadingHTTPServer, find_and_click signature, click_saved_coordinate import, requirements.txt, YOLO parser/NMS, validation recursive dataset, and config schema. All blockers verified against source code.
@@ -93,12 +82,13 @@ Plans:
 ### Phase 12.0: Contract Cleanup & Config Hygiene
 **Goal:** Fix 4 verified P0 issues remaining after Phase 11.5 before any feature work begins. These are silent runtime bugs that corrupt config persistence, leak secrets, and break region capture.
 **Depends on:** Phase 11.5
-**Status**: P0 fixes applied (src modified, awaiting verification commit)
-**Plans**: 3 plans
+**Status**: Hotfix applied; formal verification pending
+**Plans**: 4 plans (3 HOTFIX completed, 1 verification pending)
 Plans:
-- [ ] 12-0-01-PLAN.md — Backend config contract: update_config persists (deep_merge -> save_config -> load_config), add get_config command, sanitize discord_events.webhook_url from /state, return has_webhook boolean
-- [ ] 12-0-02-PLAN.md — Runtime region/window contract: fix get_search_region to call get_window_rect directly, stop using get_asset_capture_context() for screen region
-- [ ] 12-0-03-PLAN.md — Config migration activation: call migrate_combat_regions() in load_config(), validate combat_regions_v2 area is normalized [0-1], preserve legacy regions for rollback
+- [x] 12-0-01-HOTFIX.md — Backend config contract: update_config persists (deep_merge -> save_config -> load_config), add get_config command, sanitize discord_events.webhook_url from /state, return has_webhook boolean
+- [x] 12-0-02-HOTFIX.md — Runtime region/window contract: fix get_search_region to call get_window_rect directly, stop using get_asset_capture_context() for screen region
+- [x] 12-0-03-HOTFIX.md — Config migration activation: call migrate_combat_regions() in load_config(), validate combat_regions_v2 area is normalized [0-1], preserve legacy regions for rollback
+- [ ] 12-0-VERIFICATION.md — Smoke + secret-leak verification
 
 Exit criteria:
 - /state never leaks webhook URL (discord_events.webhook_url stripped)
@@ -114,7 +104,7 @@ Exit criteria:
 Plans:
 - [ ] 12-1-01-PLAN.md — Region model: list_regions(), set_region(), delete_region(), resolve_region(), validate_region()
 - [ ] 12-1-02-PLAN.md — Position model: list_positions(), set_position(), delete_position(), resolve_position(), validate_position()
-- [ ] 12-1-03-PLAN.md — Backend commands: GET /command get_regions, set_region, delete_region, get_positions, set_position, delete_position
+- [ ] 12-1-03-PLAN.md — Backend commands: POST /command get_regions, set_region, delete_region, get_positions, set_position, delete_position
 
 ### Phase 12.2: Smart Region Selector
 **Goal:** Drag-to-select overlay for user-picked combat detection regions, stored as portable normalized [0-1] coordinates.
@@ -304,7 +294,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 10. Rust/Tauri GUI | 4/4 | Complete | 2026-04-24 |
 | 11. YOLO Training Integration | 3/3 | Complete | 2026-04-24 |
 | 11.5 Contract Hardening | 3/3 | Complete | 2026-04-24 |
-| 12.0 Contract Cleanup | 3/3 | P0 fixes applied, plans pending | — |
+| 12.0 Contract Cleanup | 3/3 | Hotfix applied; verification pending | — |
 | 12.1 Region & Position Service | 3/3 | Pending | — |
 | 12.2 Smart Region Selector | 1/1 | Pending | — |
 | 12.3 Combat Position Picker | 1/1 | Pending | — |
@@ -325,7 +315,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | `.planning/research/vision_detection.md` | Complete (17KB) | MSS 3-15ms (vs pyautogui 80-200ms); OpenCV matchTemplate 15-40ms; YOLO11n ONNX 3-15ms CPU; hybrid stack recommended |
 | `.planning/research/combat_ai.md` | Complete (26KB) | Frame differencing best for real-time combat; health bar pixel scanning; state machine architecture |
 | `.planning/research/ui_ux_tech.md` | Complete (16KB) | pystray for system tray; pydirectinput.moveRel for Roblox; DPI-aware scaling; collapsible Tkinter panels |
-| `.planning/research/performance_input.md` | Complete (22KB) | MSS recommended (3-15ms capture); pydirectinput.moveRel recommended for Roblox; DXCam overkill |
+| `.planning/research/performance_input.md` | Complete (22KB) | MSS recommended (3-15ms capture); pydirectinput.moveRel confirmed for Roblox; DXCam overkill |
 
 ## Reference: Bridger Architecture
 
@@ -381,4 +371,3 @@ Tier 1: bridger.py (Python)
 - `mss.sct.grab(monitor[0])` → PIL Image → PNG → base64
 - `embed["embeds"][0]["image"] = {"url": f"data:image/png;base64,{b64}"}`
 - Discord accepts data URI in embed image — no upload server needed
-
