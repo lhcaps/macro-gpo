@@ -138,11 +138,11 @@ Exit criteria:
 **Goal:** Click-to-capture skill/action positions portable by window ratio, replacing hardcoded coords.
 **Depends on:** Phase 12.1
 **Status**: Pending
-**Plans**: 2 plans + verification
+**Plans**: 3 plans
 Plans:
-- [ ] 12-3-01-PLAN.md — PositionPickerOverlay module (Tkinter click overlay, single-shot capture)
-- [ ] 12-3-02-PLAN.md — Backend pick_position handler + emergency_stop overlay cancel
-- [ ] 12-3-VERIFICATION.md — smoke + contract verification
+- [ ] 12-3-01-PLAN.md — Wave 1: PositionPickerOverlay module (Tkinter click overlay, single-shot capture)
+- [ ] 12-3-02-PLAN.md — Wave 1: Backend pick_position handler + emergency_stop overlay cancel
+- [ ] 12-3-03-PLAN.md — Wave 2: Verification (smoke + contract)
 
 Suggested names: melee, skill_1, skill_2, skill_3, ultimate, dash, block, aim_center, return_lobby.
 
