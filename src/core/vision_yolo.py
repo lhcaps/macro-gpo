@@ -245,7 +245,6 @@ def get_dataset_stats(dataset_root: Optional[str] = None) -> dict:
     Count images per class in the dataset folder.
     Returns: {class_name: count}
     """
-    import os
     if dataset_root is None:
         dataset_root = os.path.join(os.getcwd(), "dataset_yolo")
 
@@ -270,7 +269,6 @@ def get_dataset_readiness(dataset_root: Optional[str] = None) -> dict:
     - afk_cluster: 100
     - UI elements: 30 each
     """
-    import os
     if dataset_root is None:
         dataset_root = os.path.join(os.getcwd(), "dataset_yolo")
 
@@ -312,7 +310,6 @@ def validate_model_on_dataset(
     This runs inference on stored images (not real-time) so it's safe to call
     from the backend during startup or on-demand.
     """
-    import os
     import time
 
     if dataset_root is None:

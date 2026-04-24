@@ -263,7 +263,6 @@ class BackendCallbacks:
 
 def _get_yolo_dataset_stats() -> dict:
     """Count images per class in dataset_yolo/ folder."""
-    import os
     dataset_root = os.path.join(os.getcwd(), "dataset_yolo")
     class_counts = {}
     if os.path.isdir(dataset_root):
@@ -351,7 +350,6 @@ def _yolo_capture_loop():
     """Background thread: captures 1 frame/second to dataset_yolo/{class}/."""
     global _yolo_capture_active, _yolo_capture_count, _yolo_capture_class
 
-    import os
     import time as _capture_time
     dataset_dir = os.path.join(os.getcwd(), "dataset_yolo", _yolo_capture_class)
     os.makedirs(dataset_dir, exist_ok=True)
@@ -641,10 +639,15 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                 self._send_json({"status": "ok", "models": models})
 
             elif action == "yolo_activate_model":
+                import glob as _glob
                 payload_data = data.get("payload", {})
                 model_name = payload_data.get("model_name", "")
                 if not model_name:
                     self._send_json({"status": "error", "message": "model_name required"}, 400)
+                    return
+                # Path traversal defense: reject paths with directory separators or parent refs
+                if ".." in model_name or "/" in model_name or "\\" in model_name:
+                    self._send_json({"status": "error", "message": f"Invalid model name: {model_name}"}, 400)
                     return
                 models_dir = os.path.join(os.getcwd(), "assets", "models")
                 source = os.path.join(models_dir, model_name)
