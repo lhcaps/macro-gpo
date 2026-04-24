@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zedsu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-idle: #ffffff;
+            --color-scanning: #3b82f6;
+            --color-approach: #eab308;
+            --color-engaged: #ef4444;
+            --color-fleeing: #f97316;
+            --color-spectating: #eab308;
+            --color-post-match: #22c55e;
+            --color-error: #ef4444;
+            --color-muted: #9ca3af;
+            --glow-blue: rgba(59, 130, 246, 0.5);
+            --glow-red: rgba(239, 68, 68, 0.5);
+            --glow-yellow: rgba(234, 179, 8, 0.5);
+            --glow-green: rgba(34, 197, 94, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: transparent;
+            font-family: 'JetBrains Mono', monospace;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow: hidden;
+        }
+
+        .hud-container {
+            width: 300px;
+            min-height: 80px;
+            padding: 12px 16px;
+            background: rgba(10, 10, 10, 0.5);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 8px;
+            box-shadow:
+                0 0 15px rgba(0, 0, 0, 0.3),
+                0 0 10px rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .state-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        #state-text {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #stats-text {
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--color-muted);
+            letter-spacing: 0.3px;
+        }
+
+        /* State-specific styles */
+        .state-idle {
+            color: var(--color-idle);
+        }
+
+        .state-scanning {
+            color: var(--color-scanning);
+            text-shadow: 0 0 10px var(--glow-blue), 0 0 20px var(--glow-blue);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .state-approach {
+            color: var(--color-approach);
+            text-shadow: 0 0 8px var(--glow-yellow);
+        }
+
+        .state-engaged {
+            color: var(--color-engaged);
+            text-shadow: 0 0 10px var(--glow-red), 0 0 20px var(--glow-red), 0 0 30px var(--glow-red);
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        .state-fleeing {
+            color: var(--color-fleeing);
+            text-shadow: 0 0 8px rgba(249, 115, 22, 0.5);
+        }
+
+        .state-spectating {
+            color: var(--color-spectating);
+            text-shadow: 0 0 8px var(--glow-yellow);
+        }
+
+        .state-post-match {
+            color: var(--color-post-match);
+            text-shadow: 0 0 8px var(--glow-green);
+        }
+
+        .state-error {
+            color: var(--color-error);
+            text-shadow: 0 0 10px var(--glow-red);
+            animation: blink 0.8s ease-in-out infinite;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0;
+            }
+        }
+
+        @keyframes glow {
+            0%, 100% {
+                text-shadow: 0 0 10px var(--glow-red), 0 0 20px var(--glow-red), 0 0 30px var(--glow-red);
+            }
+            50% {
+                text-shadow: 0 0 15px var(--glow-red), 0 0 30px var(--glow-red), 0 0 45px var(--glow-red);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="hud-container">
+        <div class="state-row">
+            <span id="state-text" class="state-idle">[ ○ IDLE ]</span>
+        </div>
+        <div class="stats-row">
+            <span id="stats-text">&#x23F1; 00:00 | &#x2694; Kills: 0 | &#x26A1; 0ms</span>
+        </div>
+    </div>
+
+    <script>
+        // FSM state to emoji mapping
+        const STATE_EMOJI = {
+            'IDLE': '○',
+            'SCANNING': '🔵',
+            'APPROACH': '🟡',
+            'ENGAGED': '🔴',
+            'FLEEING': '🟠',
+            'SPECTATING': '🟡',
+            'POST_MATCH': '🟢',
+            'ERROR': '❌'
+        };
+
+        // FSM state to CSS class mapping
+        const STATE_CLASS = {
+            'IDLE': 'state-idle',
+            'SCANNING': 'state-scanning',
+            'APPROACH': 'state-approach',
+            'ENGAGED': 'state-engaged',
+            'FLEEING': 'state-fleeing',
+            'SPECTATING': 'state-spectating',
+            'POST_MATCH': 'state-post-match',
+            'ERROR': 'state-error'
+        };
+
+        // Local tracking state
+        let startTime = null;
+        let elapsedInterval = null;
+        let lastDetectionMs = 0;
+
+        // DOM elements
+        const stateText = document.getElementById('state-text');
+        const statsText = document.getElementById('stats-text');
+
+        // Format elapsed time as MM:SS
+        function formatElapsed(startMs) {
+            if (!startMs) return '00:00';
+            const elapsed = Date.now() - startMs;
+            const totalSeconds = Math.floor(elapsed / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Update state display
+        function updateStateDisplay(combatState, statusColor) {
+            const emoji = STATE_EMOJI[combatState] || '○';
+            const stateClass = STATE_CLASS[combatState] || 'state-idle';
+
+            // Remove all state classes
+            stateText.className = '';
+            // Add new state class
+            stateText.classList.add(stateClass);
+            // Set text content
+            stateText.textContent = `[ ${emoji} ${combatState} ]`;
+        }
+
+        // Update stats display
+        function updateStatsDisplay(kills, detectionMs) {
+            const elapsed = formatElapsed(startTime);
+            lastDetectionMs = detectionMs || lastDetectionMs;
+            statsText.textContent = `⏱ ${elapsed} | ⚔ Kills: ${kills || 0} | ⚡ ${lastDetectionMs}ms`;
+        }
+
+        // Update elapsed time periodically
+        function startElapsedTimer() {
+            if (elapsedInterval) return;
+            elapsedInterval = setInterval(() => {
+                if (startTime) {
+                    const elapsed = formatElapsed(startTime);
+                    const currentText = statsText.textContent;
+                    const killsMatch = currentText.match(/⚔ Kills: (\d+)/);
+                    const kills = killsMatch ? killsMatch[1] : '0';
+                    statsText.textContent = `⏱ ${elapsed} | ⚔ Kills: ${kills} | ⚡ ${lastDetectionMs}ms`;
+                }
+            }, 1000);
+        }
+
+        // Poll backend state
+        async function pollBackendState() {
+            try {
+                const tauri = window.__TAURI__;
+                if (!tauri || !tauri.core) {
+                    console.warn('[HUD] Tauri API not available');
+                    return;
+                }
+
+                const hudState = await tauri.core.invoke('get_hud_state');
+
+                if (hudState) {
+                    // Check if this is a start event (transitioning to running)
+                    if (hudState.running && !startTime) {
+                        startTime = Date.now();
+                        startElapsedTimer();
+                    } else if (!hudState.running && startTime) {
+                        // Stopped - keep timer running but note the state
+                    }
+
+                    // Update state display
+                    updateStateDisplay(hudState.combat_state, hudState.status_color);
+
+                    // Update stats display
+                    const stats = hudState.stats || {};
+                    updateStatsDisplay(stats.kills, stats.detection_ms);
+                }
+            } catch (err) {
+                // Show error state gracefully
+                const currentClass = stateText.className;
+                if (!currentClass.includes('state-error')) {
+                    stateText.className = 'state-error';
+                    stateText.textContent = '[ ❌ ERROR ]';
+                }
+                console.warn('[HUD] Failed to poll backend state:', err);
+            }
+        }
+
+        // Initial state - show IDLE
+        function initializeState() {
+            stateText.className = 'state-idle';
+            stateText.textContent = '[ ○ IDLE ]';
+            statsText.textContent = '⏱ 00:00 | ⚔ Kills: 0 | ⚡ 0ms';
+        }
+
+        // Start polling on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeState();
+            // Poll every 1 second
+            setInterval(pollBackendState, 1000);
+        });
+    </script>
+</body>
+</html>
