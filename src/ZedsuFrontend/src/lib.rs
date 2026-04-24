@@ -7,9 +7,10 @@
 //!
 //! - BackendManager: spawns ZedsuBackend.exe, health-checks every 3s, respawns on crash
 //! - IPC: reqwest HTTP client to port 9761
-//! - Tauri commands: get_backend_state, send_action, restart_backend, stop_backend
+//! - Tauri commands: get_backend_state, get_hud_state, send_action, restart_backend, stop_backend
 //! - Health watch thread: every 3s checks if backend responds
-//! - Crash watch thread: monitors backend exit code
+//! - Global shortcuts: F1=emergency_stop, F2=toggle_HUD, F3=toggle_start_stop, F4=show_settings
+//! - HUD overlay window: 300x80px transparent overlay at top-right (created in setup)
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -17,6 +18,7 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{Manager, State};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 // ============================================================================
 // Constants
@@ -94,6 +96,23 @@ pub struct HudStats {
     pub detection_ms: i32,
     #[serde(rename = "elapsed")]
     pub elapsed: i64,
+}
+
+// ============================================================================
+// Application State (HUD visibility)
+// ============================================================================
+
+/// Shared application state for HUD visibility and other UI state
+pub struct AppState {
+    pub hud_visible: Arc<Mutex<bool>>,
+}
+
+impl AppState {
+    pub fn new() -> Self {
+        Self {
+            hud_visible: Arc::new(Mutex::new(true)),
+        }
+    }
 }
 
 // ============================================================================
@@ -365,11 +384,87 @@ fn stop_backend(
 }
 
 // ============================================================================
+// Global Shortcut Handler
+// ============================================================================
+
+/// Register F1-F4 global shortcuts and handle their actions.
+fn register_hotkeys(
+    app: &tauri::AppHandle,
+    backend: Arc<Mutex<BackendManager>>,
+    hud_visible: Arc<Mutex<bool>>,
+) {
+    let f1_shortcut = Shortcut::new(None, tauri_plugin_global_shortcut::Code::F1);
+    let f2_shortcut = Shortcut::new(None, tauri_plugin_global_shortcut::Code::F2);
+    let f3_shortcut = Shortcut::new(None, tauri_plugin_global_shortcut::Code::F3);
+    let f4_shortcut = Shortcut::new(None, tauri_plugin_global_shortcut::Code::F4);
+
+    // F1: emergency_stop -- each closure gets its own Arc clone
+    let backend_f1 = Arc::clone(&backend);
+    let _ = app.global_shortcut().on_shortcut(f1_shortcut, move |_app, _shortcut, event| {
+        if event.state == ShortcutState::Pressed {
+            eprintln!("[ZEDSU] F1 pressed: emergency_stop");
+            if let Ok(mgr) = backend_f1.lock() {
+                let _ = mgr.send_command("emergency_stop", None);
+            }
+        }
+    });
+
+    // F2: toggle HUD
+    let app_f2 = app.clone();
+    let hud_visible_f2 = Arc::clone(&hud_visible);
+    let _ = app.global_shortcut().on_shortcut(f2_shortcut, move |_app, _shortcut, event| {
+        if event.state == ShortcutState::Pressed {
+            if let Some(hud) = app_f2.get_webview_window("hud") {
+                let mut visible = hud_visible_f2.lock().unwrap();
+                if *visible {
+                    let _ = hud.hide();
+                    eprintln!("[ZEDSU] HUD hidden (F2)");
+                } else {
+                    let _ = hud.show();
+                    let _ = hud.set_focus();
+                    eprintln!("[ZEDSU] HUD shown (F2)");
+                }
+                *visible = !*visible;
+            }
+        }
+    });
+
+    // F3: toggle start/stop
+    let backend_f3 = Arc::clone(&backend);
+    let _ = app.global_shortcut().on_shortcut(f3_shortcut, move |_app, _shortcut, event| {
+        if event.state == ShortcutState::Pressed {
+            eprintln!("[ZEDSU] F3 pressed: toggle_start_stop");
+            if let Ok(mgr) = backend_f3.lock() {
+                let _ = mgr.send_command("toggle", None);
+            }
+        }
+    });
+
+    // F4: show main window
+    let app_f4 = app.clone();
+    let _ = app.global_shortcut().on_shortcut(f4_shortcut, move |_app, _shortcut, event| {
+        if event.state == ShortcutState::Pressed {
+            eprintln!("[ZEDSU] F4 pressed: show_main_window");
+            if let Some(main) = app_f4.get_webview_window("main") {
+                let _ = main.show();
+                let _ = main.set_focus();
+                eprintln!("[ZEDSU] Main window shown (F4)");
+            }
+        }
+    });
+
+    eprintln!(
+        "[ZEDSU] Hotkeys registered: F1=Stop, F2=HUD, F3=Start/Stop, F4=Settings"
+    );
+}
+
+// ============================================================================
 // Main entry
 // ============================================================================
 
 pub fn run() {
     let backend_manager = Arc::new(Mutex::new(BackendManager::new()));
+    let app_state = AppState::new();
 
     // Attempt to start the backend
     {
@@ -402,8 +497,13 @@ pub fn run() {
         }
     });
 
+    let hud_visible = app_state.hud_visible.clone();
+    let backend_for_setup = backend_manager.clone();
+
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(backend_manager.clone())
+        .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             get_backend_state,
             get_hud_state,
@@ -411,12 +511,18 @@ pub fn run() {
             restart_backend,
             stop_backend,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             eprintln!("[ZEDSU] Frontend ready");
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+
+            // Register F1-F4 global shortcuts
+            register_hotkeys(app.handle(), backend_for_setup.clone(), hud_visible.clone());
+
+            // HUD window is configured in tauri.conf.json (visible: true, 300x80, top-right)
+            // No need to create it here -- Tauri creates it from config
+
+            // Main window starts hidden (D-10a-01) -- don't show it on startup
+            // User can reveal via F4 or system tray
+
             Ok(())
         })
         .build(tauri::generate_context!())
