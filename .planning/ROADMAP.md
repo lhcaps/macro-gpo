@@ -172,13 +172,30 @@ Exit criteria:
 - death sends event
 - bot_error sends without leaking traceback
 
-### Phase 12.5: Phase 12 Integration Verification
-**Goal:** Verify all Phase 12 features work together. Catch silent failures before Phase 13.
+### Phase 12.5: Combat AI Intelligence Foundation
+**Goal:** Turn the current melee-loop bot into a measurable, survival-aware combat AI: records what happened, remembers targets, understands crowd risk, chooses movement by score instead of random, classifies why it died, preserves Phase 12.4 Discord events, and verifies the whole Phase 12 stack still works.
 **Depends on:** Phase 12.1, Phase 12.2, Phase 12.3, Phase 12.4
+**Requirements**: New combat AI requirements TBD
 **Status**: Pending
-**Plans**: 1 plan
+**Plans**: 7 plans
 Plans:
-- [ ] 12-5-01-PLAN.md — Integration smoke: py_compile on all src/*.py, cargo check, backend smoke (GET /health, /state, all region/position commands), secret leak check (/state must not contain webhook URL)
+- [ ] 12-5-00-PLAN.md — Phase 12 regression guard: py_compile all Phase 12 files, verify Discord event paths, check secret leak regression, verify config schema
+- [ ] 12-5-01-PLAN.md — Combat telemetry JSONL: MatchTelemetry singleton, CombatTick dataclass, timeline.jsonl output, hook points in bot_engine.py
+- [ ] 12-5-02-PLAN.md — Target memory: TargetTrack + TargetDecision, EMA confidence, grace period for visual loss, multi-enemy stability
+- [ ] 12-5-03-PLAN.md — Situation/risk model: CombatSituation dataclass, crowd_risk formula, recommended_intent (engage/pursue/reposition/flee/scan)
+- [ ] 12-5-04-PLAN.md — Scored movement policy: MovementPolicy scoring, replace random pattern selection in perform_dynamic_combat_movement, intent-to-movement mapping
+- [ ] 12-5-05-PLAN.md — Death classifier: DeathClassifier, DeathReason labels, metadata attached to Discord death event, summary.json death_reason
+- [ ] 12-5-06-PLAN.md — AI verification harness: verify_combat_ai.py smoke tests for compile/import/config/logic/telemetry/regression
+
+Exit criteria:
+- Each match creates runs/matches/match_XXXX/timeline.jsonl
+- Target persists through short visual loss (< 2s)
+- Fight đông người (2+ enemies) triggers reposition/flee intent
+- No pure random movement in normal ENGAGED path (scored policy active)
+- Discord death event has death_reason metadata
+- match_end still sends duration + kills + screenshot
+- verify_combat_ai.py exits with code 0
+- Phase 12.1–12.4 smoke still passes
 
 ### Phase 13: Tauri Operator Shell: Tray, Settings, HUD Placement
 **Goal:** Complete the v3 operator shell — Tauri tray with state colors, dynamic HUD positioning, Settings surface. Not a UI redesign; a completion of the shell around the v3 architecture.
@@ -319,7 +336,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.2 Smart Region Selector | 2/2 | Complete | 2026-04-24 |
 | 12.3 Combat Position Picker | 3/3 | Complete (hotfix 2026-04-25) | 2026-04-25 |
 | 12.4 Discord Event System | 2/2 | Complete | 2026-04-25 |
-| 12.5 Phase 12 Integration | 1/1 | Pending | — |
+| 12.5 Combat AI Foundation | 7/7 | Pending | — |
 | 13. Tauri Operator Shell | 3/3 | Pending | — |
 | 14. Real Production Build | 4/4 | Pending | — |
 | 15. Replay Benchmark | 3/3 | Pending | — |

@@ -5,15 +5,15 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12.5 — Phase 12 Integration Verification
-Active subphase: Phase 12.4 complete (2/2 plans); Phase 12.5 pending
+**Current focus:** Phase 12.5 — Combat AI Intelligence Foundation
+Active subphase: Phase 12.4 complete (2/2 plans); Phase 12.5 plans ready (7 plans)
 
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.3 complete)
-Phase: 12.4 complete (FSM wiring: 5 event types wired, 10 checks PASS); 12.5 integration verification pending
-Status: Phase 12.4 complete; 12.5 next
-Next: Phase 12.5 plan or discuss
+Phase: 12.4 complete (FSM wiring: 5 event types wired, 10 checks PASS); 12.5 plans ready (7 plans across 3 waves)
+Status: Phase 12.4 complete; 12.5 next — ready to execute
+Next: Execute Phase 12.5 — Wave 0: regression guard first, then Wave 1: telemetry + target memory
 
 Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.3 complete (12.4-12.5 pending)
 
@@ -245,24 +245,31 @@ Phase 12.4-02 discuss complete. 9 decisions captured:
 
 **Deferred:**
 - zedsu_core.py event wiring → Phase 16
-- Discord embed formatting refinement → Phase 12.5
 - Per-event screenshot_region config → deferred
+- Discord embed formatting refinement → Phase 17 (needs Phase 12.5 telemetry data first)
 
-**Next:** Phase 12.5 — Integration Verification
+**Next:** Phase 12.5 — Combat AI Intelligence Foundation (plans ready, execute next)
 
-## Session Continuity (2026-04-25 — Phase 12.4 Execute + Complete)
+## Session Continuity (2026-04-25 — Phase 12.5 Planning)
 
-Phase 12.4-02 FSM Event Wiring executed and verified:
+Phase 12.5 plans written (7 plans across 3 waves):
 
-1. 5 event types wired into bot_engine.py:
-   - match_end: replaces legacy send_discord() in handle_post_match()
-   - kill_milestone: check in CombatStateMachine.update() on kill increment
-   - combat_start: emit in bot_loop() + auto_punch()
-   - death: _emit_death_event_once() with double-send guard
-   - bot_error: emit in bot_loop() exception handler
+**Wave 0 — Guardrail:**
+- 12-5-00: Phase 12 regression guard — py_compile all Phase 12 files, verify Discord event paths, config schema, secret leak check
 
-2. All verification checks PASS (10/10)
-3. SUMMARY.md and VERIFICATION.md committed
-4. ROADMAP.md and STATE.md updated
+**Wave 1 — Measure First:**
+- 12-5-01: Combat telemetry JSONL — MatchTelemetry singleton, CombatTick dataclass, timeline.jsonl output, hook points in bot_engine.py
+- 12-5-02: Target memory — TargetTrack + TargetDecision, EMA confidence, grace period, multi-enemy stability
 
-**Next:** Phase 12.5 — Phase 12 Integration Verification
+**Wave 2 — Survival Intelligence:**
+- 12-5-03: Situation/risk model — CombatSituation dataclass, crowd_risk formula, recommended_intent
+- 12-5-04: Scored movement policy — MovementPolicy scoring, replace random movement, intent-to-movement mapping
+- 12-5-05: Death classifier — DeathReason labels, metadata attached to Discord death event
+
+**Wave 3 — Integration + Regression:**
+- 12-5-06: AI verification harness — verify_combat_ai.py smoke tests
+
+Build order: telemetry → target memory → situation model → scored movement → death classifier → verify
+No combos, no FSM rewrite, no exploit/memory reading.
+
+**Next:** Execute Phase 12.5 starting with 12-5-00 regression guard
