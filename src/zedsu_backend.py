@@ -107,6 +107,16 @@ except ImportError:
     YOLODetector = _DummyYOLODetector
 
 
+# Phase 12.1: Region and position service layer
+from src.services.region_service import (
+    list_regions, set_region, delete_region,
+    resolve_region, resolve_all_regions,
+)
+from src.services.position_service import (
+    list_positions, set_position, delete_position,
+    resolve_position, resolve_all_positions,
+)
+
 # ============================================================================
 # BackendCallbacks — implements CoreCallbacks for ZedsuCore
 # ============================================================================
@@ -814,6 +824,123 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                     "model": model_name,
                     "quality_score": _yolo_quality_score,
                     "quality_warning": _yolo_quality_warning,
+                })
+
+            # Phase 12.1: Region commands
+            elif action == "get_regions":
+                regions = list_regions(_app_config)
+                self._send_json({"status": "ok", "regions": regions})
+
+            elif action == "set_region":
+                from src.utils.config import save_config, load_config
+                payload_data = data.get("payload", {})
+                name = payload_data.get("name", "")
+                area = payload_data.get("area", payload_data.get("coords", []))
+                kind = payload_data.get("kind", "generic")
+                threshold = payload_data.get("threshold")
+                enabled = payload_data.get("enabled", True)
+                label = payload_data.get("label")
+                success, error = set_region(_app_config, name, area, kind, threshold, enabled, label)
+                if success:
+                    save_config(_app_config)
+                    _app_config = load_config()
+                    self._send_json({"status": "ok"})
+                else:
+                    self._send_json({"status": "error", "message": error}, 400)
+
+            elif action == "delete_region":
+                from src.utils.config import save_config, load_config
+                payload_data = data.get("payload", {})
+                name = payload_data.get("name", "")
+                success, error = delete_region(_app_config, name)
+                if success:
+                    save_config(_app_config)
+                    _app_config = load_config()
+                    self._send_json({"status": "ok"})
+                else:
+                    self._send_json({"status": "error", "message": error}, 404)
+
+            elif action == "resolve_region":
+                payload_data = data.get("payload", {})
+                name = payload_data.get("name", "")
+                resolved = resolve_region(_app_config, name)
+                if resolved is None:
+                    self._send_json({"status": "error", "message": f"Region not found or window not found: {name}"}, 404)
+                else:
+                    self._send_json({"status": "ok", "region": resolved})
+
+            elif action == "resolve_all_regions":
+                resolved = resolve_all_regions(_app_config)
+                self._send_json({"status": "ok", "regions": resolved})
+
+            # Phase 12.1: Position commands
+            elif action == "get_positions":
+                positions = list_positions(_app_config)
+                self._send_json({"status": "ok", "positions": positions})
+
+            elif action == "set_position":
+                from src.utils.config import save_config, load_config
+                payload_data = data.get("payload", {})
+                name = payload_data.get("name", "")
+                x = payload_data.get("x")
+                y = payload_data.get("y")
+                if x is None or y is None:
+                    self._send_json({"status": "error", "message": "x and y are required"}, 400)
+                    return
+                label = payload_data.get("label")
+                enabled = payload_data.get("enabled", True)
+                captured_at = payload_data.get("captured_at")
+                window_title = payload_data.get("window_title")
+                success, error = set_position(_app_config, name, x, y, label, enabled, captured_at, window_title)
+                if success:
+                    save_config(_app_config)
+                    _app_config = load_config()
+                    self._send_json({"status": "ok"})
+                else:
+                    self._send_json({"status": "error", "message": error}, 400)
+
+            elif action == "delete_position":
+                from src.utils.config import save_config, load_config
+                payload_data = data.get("payload", {})
+                name = payload_data.get("name", "")
+                success, error = delete_position(_app_config, name)
+                if success:
+                    save_config(_app_config)
+                    _app_config = load_config()
+                    self._send_json({"status": "ok"})
+                else:
+                    self._send_json({"status": "error", "message": error}, 404)
+
+            elif action == "resolve_position":
+                payload_data = data.get("payload", {})
+                name = payload_data.get("name", "")
+                resolved = resolve_position(_app_config, name)
+                if resolved is None:
+                    self._send_json({"status": "error", "message": f"Position not found or window not found: {name}"}, 404)
+                else:
+                    self._send_json({"status": "ok", "position": resolved})
+
+            elif action == "resolve_all_positions":
+                resolved = resolve_all_positions(_app_config)
+                self._send_json({"status": "ok", "positions": resolved})
+
+            # Phase 12.1: Search region (closes Phase 12.0 V6 deferral)
+            elif action == "get_search_region":
+                from src.utils.windows import get_window_rect
+                window_title = _app_config.get("game_window_title", "")
+                rect = get_window_rect(window_title)
+                if rect is None:
+                    self._send_json({"status": "error", "message": "Window not found"}, 404)
+                    return
+                left, top, right, bottom = rect
+                self._send_json({
+                    "status": "ok",
+                    "search_region": {
+                        "left": left,
+                        "top": top,
+                        "width": right - left,
+                        "height": bottom - top,
+                    }
                 })
 
             else:
