@@ -18,3 +18,15 @@ from .position_service import (
     validate_position_record,
     validate_xy,
 )
+from .discord_event_service import (
+    DiscordEvent,
+    emit_event,
+    get_discord_webhook,
+    has_webhook,
+    should_dispatch,
+    dedupe_kill_milestone,
+    reset_kill_dedupe,
+    capture_screenshot_png_bytes,
+    send_discord_event,
+    test_webhook_blocking,
+)

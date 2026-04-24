@@ -77,7 +77,7 @@ Plans:
 **Goal:** Build the core operator-facing controls: smart region selector, combat position picker, and structured Discord event system. This is NOT a Bridger clone — it is Zedsu's own product: a recoverable, screen-based GPO BR automation runtime that always keeps the operator informed about loop state, why it is stuck, what it tried, and what needs fixing.
 **Depends on:** Phase 11.5
 **Requirements**: OPER-36, OPER-37 (existing), new Phase 12 requirements TBD
-**Status**: Phase 12.0 complete; Phases 12.1–12.5 pending discuss/plan
+**Status**: 12.0 Complete; 12.1 Complete; 12.2 Complete; 12.3 Complete (hotfix applied); 12.4 Pending; 12.5 Pending
 
 ### Phase 12.0: Contract Cleanup & Config Hygiene
 **Goal:** Fix 4 verified P0 issues remaining after Phase 11.5 before any feature work begins. These are silent runtime bugs that corrupt config persistence, leak secrets, and break region capture.
@@ -313,7 +313,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.0 Contract Cleanup | 3/3 | Complete (6/7 PASS) | 2026-04-24 |
 | 12.1 Region & Position Service | 4/4 | Complete | 2026-04-24 |
 | 12.2 Smart Region Selector | 2/2 | Complete | 2026-04-24 |
-| 12.3 Combat Position Picker | 3/3 | Complete (2026-04-25) | 2026-04-25 |
+| 12.3 Combat Position Picker | 3/3 | Complete (hotfix 2026-04-25) | 2026-04-25 |
 | 12.4 Discord Event System | 1/1 | Pending | — |
 | 12.5 Phase 12 Integration | 1/1 | Pending | — |
 | 13. Tauri Operator Shell | 3/3 | Pending | — |

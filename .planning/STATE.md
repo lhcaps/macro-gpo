@@ -5,15 +5,15 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12.4 — Discord Event System (pending discuss/plan)
-Active subphase: Phase 12.3 complete with hotfix (race guard + unified overlay tracker)
+**Current focus:** Phase 12.4 — Discord Event System
+Active subphase: Phase 12.3 complete with hotfix (race guard + unified overlay tracker); 12.3.1 cleanup in progress
 
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.3 complete)
-Phase: 12.3 complete + hotfix applied; Phase 12.4 pending
-Status: Phase 12.3 Smart Region Selector + Position Picker both complete; emergency_stop race fixed
-Next: Phase 12.4 discuss/plan (Discord Event System)
+Phase: 12.3 complete (hotfix); 12.3.1 cleanup (Discord contract + planning artifact); 12.4 pending
+Status: Phase 12.3 Smart Region Selector + Position Picker both complete; emergency_stop race fixed; 12.3.1 cleanup: ROADMAP status synced, Discord source-of-truth migrated, discord_event_service created, test_webhook command added
+Next: Phase 12.4 plan (Discord Event System)
 
 Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.3 complete (12.4-12.5 pending)
 
@@ -200,6 +200,25 @@ Post-execution review found 3 issues — hotfix applied:
 4. 12-3-REVIEW.md committed to repo
 
 Next: Phase 12.4 (Discord Event System) or Phase 12.5 (Integration)
+
+## Session Continuity (2026-04-25 — 12.3.1 Cleanup: Discord Contract + Planning Artifact)
+
+Phase 12.3.1 cleanup executed as pre-flight before Phase 12.4. Items completed:
+1. ROADMAP.md: Phase 12 status line updated to "12.0 Complete; 12.1 Complete; 12.2 Complete; 12.3 Complete (hotfix applied); 12.4 Pending; 12.5 Pending". Progress table updated.
+2. STATE.md: Updated current phase and next to reflect 12.3.1 cleanup in progress.
+3. Discord source of truth migrated: BackendCallbacks.discord() now reads discord_events.webhook_url (primary), falls back to discord_webhook (legacy). discord_event_service.py created with worker queue, event policy, kill milestone dedupe, bytes upload (no temp file).
+4. src/utils/discord.py updated: send_discord accepts bytes_io kwarg for in-memory PNG, file_path still works for backwards compat.
+5. test_discord_webhook command added to backend command handler. Response: {status, has_webhook, sent} — no webhook URL leaked.
+6. zedsu_core_callbacks.py interface updated: emit_event() method added.
+7. bot_engine.py match_end Discord call migrated to discord_events.webhook_url (still via send_discord for compatibility).
+
+Not done in 12.3.1 (deferred to 12.4 plan):
+- Event wiring in combat FSM (combat_start, death, kill_milestone events)
+- Full discord_event_service integration into BackendCallbacks
+- Structured event payloads with embeds
+- MSS screenshot in-memory capture
+
+Next: Phase 12.4 plan (Discord Event System)
 
 ## Session Continuity (2026-04-25 — Hotfix + Artifact sync)
 

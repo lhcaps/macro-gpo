@@ -53,6 +53,10 @@ class CoreCallbacks(Protocol):
         """Send Discord notification. Backend calls send_discord()."""
         ...
 
+    def emit_event(self, kind: str, **kwargs) -> None:
+        """Emit a structured Discord event (Phase 12.4). Non-blocking via worker queue."""
+        ...
+
     def config(self) -> dict:
         """Return current config dict. Called every time the bot reads config."""
         ...
@@ -164,6 +168,9 @@ class NoOpCallbacks:
         pass
 
     def discord(self, message, screenshot_path=None, event="info"):
+        pass
+
+    def emit_event(self, kind, **kwargs):
         pass
 
     def config(self):

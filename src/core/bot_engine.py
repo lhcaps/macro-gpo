@@ -26,6 +26,7 @@ from src.utils.config import (
     resolve_outcome_area,
 )
 from src.utils.discord import send_discord
+from src.services.discord_event_service import get_discord_webhook
 from src.utils.windows import (
     bring_window_to_foreground,
     find_window_by_title,
@@ -1456,7 +1457,8 @@ class BotEngine:
                 elapsed = max(0, min(3600, int(time.time() - self.match_start_time)))
                 elapsed_text = f"{elapsed // 60}m {elapsed % 60}s"
                 message = f"Queue #{self.app.match_count} finished in {elapsed_text}"
-                status_code = send_discord(self.app.config.get("discord_webhook"), message, file_path=screenshot_path)
+                webhook_url = get_discord_webhook(self.app.config)
+                status_code = send_discord(webhook_url, message, file_path=screenshot_path)
                 if status_code:
                     self.log(f"Discord notification sent ({status_code}).")
                 else:

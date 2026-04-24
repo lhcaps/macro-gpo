@@ -118,6 +118,14 @@ from src.services.position_service import (
     list_positions, set_position, delete_position,
     resolve_position, resolve_all_positions,
 )
+# Phase 12.4: Discord event service
+from src.services.discord_event_service import (
+    emit_event,
+    get_discord_webhook,
+    has_webhook,
+    DiscordEvent,
+    test_webhook_blocking,
+)
 
 # ============================================================================
 # BackendCallbacks — implements CoreCallbacks for ZedsuCore
@@ -149,8 +157,12 @@ class BackendCallbacks:
             _app_status_color = color
 
     def discord(self, message: str, screenshot_path: Optional[str] = None, event: str = "info") -> None:
-        """Send Discord notification via send_discord()."""
-        webhook_url = _app_config.get("discord_webhook", "")
+        """Send Discord notification (legacy path for backward compat with ZedsuCore).
+
+        Source of truth: discord_events.webhook_url (Phase 12.4).
+        Legacy fallback: discord_webhook (pre-Phase 12.4 configs).
+        """
+        webhook_url = get_discord_webhook(_app_config)
         if not webhook_url:
             return
         try:
@@ -162,6 +174,15 @@ class BackendCallbacks:
                 self.log(f"Discord notification failed (no status)", "warn")
         except Exception as e:
             self.log(f"Discord send failed: {e}", "error")
+
+    def emit_event(self, kind: str, **payload) -> None:
+        """Emit a structured Discord event (Phase 12.4).
+
+        Dispatches to DiscordEventWorker via queue — does NOT block.
+        BackendCallbacks.emit_event() is the non-blocking alternative to discord().
+        """
+        event = DiscordEvent(kind=kind, **payload)
+        emit_event(_app_config, event)
 
     def config(self) -> dict:
         """Return current config dict from memory."""
@@ -931,6 +952,19 @@ class ZedsuHandler(BaseHTTPRequestHandler):
             elif action == "resolve_all_positions":
                 resolved = resolve_all_positions(_app_config)
                 self._send_json({"status": "ok", "positions": resolved})
+
+            # Phase 12.4: Test Discord webhook — does NOT leak webhook URL in response
+            elif action == "test_discord_webhook":
+                webhook_url = get_discord_webhook(_app_config)
+                has_webhook_flag = bool(webhook_url)
+                if not has_webhook_flag:
+                    self._send_json({"status": "ok", "has_webhook": False, "sent": False})
+                    return
+                # Blocking is fine here — this is a manual admin command, not a hot path.
+                # Max cost: 10s timeout from test_webhook_blocking.
+                sent = test_webhook_blocking(webhook_url)
+                self._send_json({"status": "ok", "has_webhook": has_webhook_flag, "sent": sent})
+                return
 
             # Phase 12.1: Search region (closes Phase 12.0 V6 deferral)
             elif action == "get_search_region":
