@@ -138,16 +138,18 @@ Exit criteria:
 **Goal:** Click-to-capture skill/action positions portable by window ratio, replacing hardcoded coords.
 **Depends on:** Phase 12.1
 **Status**: Pending
-**Plans**: 1 plan
+**Plans**: 2 plans + verification
 Plans:
-- [ ] 12-3-01-PLAN.md — Position picker: POST /command pick_position, transparent click overlay, captures x/y normalized to window, stores combat_positions[name] with window metadata, resolves for current window size
+- [ ] 12-3-01-PLAN.md — PositionPickerOverlay module (Tkinter click overlay, single-shot capture)
+- [ ] 12-3-02-PLAN.md — Backend pick_position handler + emergency_stop overlay cancel
+- [ ] 12-3-VERIFICATION.md — smoke + contract verification
 
-Default names: melee, skill_1, skill_2, skill_3, ultimate, dash.
+Suggested names: melee, skill_1, skill_2, skill_3, ultimate, dash, block, aim_center, return_lobby.
 
 Exit criteria:
-- Click inside window only (outside returns clear error)
-- Position survives window resize
-- emergency_stop cancels overlay safely
+- Click inside window only (outside returns clear error, NOT silently clamped)
+- Position survives window resize (normalized coords)
+- emergency_stop cancels overlay safely (via _active_overlay tracking)
 
 ### Phase 12.4: Discord Event System
 **Goal:** Transform Discord from "send a message" into an event policy layer. Core/Engine events dispatched to Discord with structured payloads and screenshot capture.
@@ -309,7 +311,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.0 Contract Cleanup | 3/3 | Complete (6/7 PASS) | 2026-04-24 |
 | 12.1 Region & Position Service | 4/4 | Complete | 2026-04-24 |
 | 12.2 Smart Region Selector | 2/2 | Complete | 2026-04-24 |
-| 12.3 Combat Position Picker | 1/1 | Pending | — |
+| 12.3 Combat Position Picker | 0/3 | Pending | — |
 | 12.4 Discord Event System | 1/1 | Pending | — |
 | 12.5 Phase 12 Integration | 1/1 | Pending | — |
 | 13. Tauri Operator Shell | 3/3 | Pending | — |

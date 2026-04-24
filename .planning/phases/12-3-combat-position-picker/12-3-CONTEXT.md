@@ -23,8 +23,8 @@ This is a mirror of Phase 12.2's region selector but for single-point positions 
 
 ### D-02: Overlay Scope
 - Window-only -- `get_window_rect()` fresh each time the picker opens
-- Clamp click inside window bounds (click outside window returns clear error)
-- NOT full screen -- only covers the target game window
+- Overlay covers exactly the game window -- user cannot click outside the overlay bounds naturally
+- However: if event coords are outside [0, width]/[0, height] (due to geometry mismatch, window moved during overlay, or coords drift), REJECT the click with error -- do NOT silently clamp
 - Uses `game_window_title` from config to identify the target window
 
 ### D-03: Click Lifecycle -- Single-shot
@@ -34,9 +34,17 @@ This is a mirror of Phase 12.2's region selector but for single-point positions 
 
 ### D-04: Position Naming -- Frontend sends name in payload
 - **Frontend sends name** via `payload.name` in the POST command
-- Operator selects the position name (melee, skill_1, etc.) in the Tauri UI before triggering the pick command
+- Operator selects the position name in the Tauri UI before triggering the pick command
 - Clean separation: UI names the slot, backend captures the click
-- Default names (melee, skill_1, skill_2, skill_3, ultimate, dash) are suggested slot names, not enforced
+- **Suggested slot names** (not enforced, UI may use a subset):
+  - `melee` -- M1 melee attack
+  - `skill_1`, `skill_2`, `skill_3` -- skill bar slots
+  - `ultimate` -- special ability
+  - `dash` -- movement skill
+  - `block` -- defense action
+  - `aim_center` -- crosshair center reference
+  - `return_lobby` -- return-to-lobby button
+- If `payload.name` is absent or empty, backend returns error (name is required, no silent default)
 
 ### D-05: Command Contract
 - Frontend sends `POST /command` with `{"action": "pick_position", "payload": {"name": "melee"}}`
@@ -55,13 +63,14 @@ This is a mirror of Phase 12.2's region selector but for single-point positions 
 - Single left-click inside window captures position
 - Mouse position at click time: local canvas x/y (origin top-left of overlay)
 - Normalize: `norm_x = local_x / win_width`, `norm_y = local_y / win_height`
-- Clamp normalized values to [0.0, 1.0]
-- Click outside window bounds returns error (not silently clamped)
+- REJECT out-of-bounds click: if event.x outside [0, win_width] or event.y outside [0, win_height], return error instead of silently clamping
+- Clamp normalized values to [0.0, 1.0] only after confirming in-bounds
 
 ### D-07: Metadata Capture
-- Capture timestamp (`captured_at`) in ISO format at click time
+- Capture timestamp (`captured_at`) as timezone-aware ISO string: `datetime.now(timezone.utc).isoformat()`
 - Capture `window_title` from current config at click time
 - These are stored by `set_position()` from Phase 12.1 service layer
+- Do NOT use naive local-time datetime -- must be timezone-aware
 
 ### D-08: Esc Cancel
 - Esc key cancels selection safely -- no config mutation
@@ -78,6 +87,14 @@ This is a mirror of Phase 12.2's region selector but for single-point positions 
 - Whether to show a subtle "click to capture" label in the overlay
 - Error message text for various error cases (window not found, etc.)
 - Whether to show live normalized coords preview during hover
+
+### D-10: Emergency Stop Integration
+- Track active overlay globally in backend.py via `_active_overlay` variable (initially None)
+- When `pick_position` starts: set `_active_overlay = overlay_instance`
+- When overlay closes (any outcome): set `_active_overlay = None`
+- In `emergency_stop` handler: if `_active_overlay` is not None, call `_active_overlay.request_cancel("Emergency stop")` before doing other stop work
+- Same mechanism works for both region selector and position picker (Phase 12.2 + Phase 12.3)
+- This satisfies the exit criterion: "emergency_stop cancels overlay safely"
 </decisions>
 
 <canonical_refs>
@@ -127,8 +144,11 @@ This is a mirror of Phase 12.2's region selector but for single-point positions 
 ## Specific Ideas
 
 ### Default Position Names
-From ROADMAP.md: melee, skill_1, skill_2, skill_3, ultimate, dash.
-These are the typical GPO combat action slots. Frontend sends the name via payload -- these are suggestions, not enforced.
+Suggested GPO combat action slots:
+- `melee`, `skill_1`, `skill_2`, `skill_3`, `ultimate`, `dash`
+- `block`, `aim_center`, `return_lobby`
+
+These are suggestions, not enforced. Frontend UI owns the naming surface. Backend only stores whatever name the frontend sends.
 
 ### Typical Workflow
 1. Operator clicks "Pick Position: melee" button in Tauri UI (Phase 13) -- or presses F7 (Phase 13)
@@ -151,7 +171,7 @@ These are the typical GPO combat action slots. Frontend sends the name via paylo
 ### Exit Criteria (from ROADMAP.md)
 1. Click inside window only -- outside returns clear error
 2. Position survives window resize (normalized coords)
-3. emergency_stop cancels overlay safely
+3. emergency_stop cancels overlay safely -- via `_active_overlay` global tracking in backend.py
 </specifics>
 
 <deferred>
