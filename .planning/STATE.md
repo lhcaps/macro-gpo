@@ -5,17 +5,17 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12.2 — Smart Region Selector (pending discuss/plan)
-Active subphase: 12.2 Smart Region Selector (pending discuss/plan)
+**Current focus:** Phase 12.2 — Smart Region Selector (context gathered, pending plan)
+Active subphase: 12.2 Smart Region Selector (context gathered, pending plan)
 
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.0 complete)
-Phase: 12.1 complete (11/11 PASS); Phase 12.2 pending discuss/plan
-Status: Phase 12.1 complete; Phase 12.2 Smart Region Selector pending discuss/plan
+Phase: 12.1 complete (11/11 PASS); Phase 12.2 context gathered, pending plan
+Status: Phase 12.1 complete; Phase 12.2 Smart Region Selector context gathered, next: plan-phase
 Next: Discuss Phase 12.2
 
-Progress: [▓▓▓▓▓▓▓▓▓░] v2 complete, v3 Phase 9-12.1 complete (12.2-12.5 pending)
+Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.1 complete, 12.2 context done (12.3-12.5 pending)
 
 ## Accumulated Context
 
@@ -110,6 +110,15 @@ Progress: [▓▓▓▓▓▓▓▓▓░] v2 complete, v3 Phase 9-12.1 complete
 - validate_model_on_dataset reads recursive dataset directories
 - Config schema Phase 12 adds combat_regions_v2/combat_positions/discord_events without breaking legacy schema
 
+### Decisions (Milestone v3 — Phase 12.2)
+
+- Tkinter overlay in Python backend (not Tauri) — Phase 12.1 service layer ready
+- Window-only scope — fresh get_window_rect() each time, clamp drag inside window bounds
+- Minimal drag box UX — no resize handles, Enter confirm, Esc cancel, minimum 5x5 pixel threshold
+- Backend owns save_config/load_config round-trip after set_region()
+- Tauri overlay deferred to Phase 13 Settings v3; command contract unchanged
+- Start behavior (auto-hide app, HUD-only mode, tray control) belongs to Phase 13
+
 ### Decisions (Milestone v3 — Phase 13+)
 
 - System tray v3: Tauri-native tray with 4 state colors (Gray/Green/Yellow/Red), full menu
@@ -149,18 +158,12 @@ Last session: 2026-04-24
 Stopped at: Phase 12.0 — Contract Cleanup & Config Hygiene
 Resumed at: Phase 12.0 P0 fixes applied, roadmap rewritten
 
-## Session Continuity (2026-04-24 — resumed)
+## Session Continuity (2026-04-24 — Phase 12.2 discuss)
 
-Brutal code review of Phase 11.5 found 4 P0 issues that must be fixed before Phase 12.1 feature work:
+Phase 12.1 complete (11/11 PASS).
+Phase 12.2 discuss complete — context captured with 3 decisions:
+1. Tkinter overlay in Python backend (not Tauri)
+2. Window-only scope (not fullscreen)
+3. Minimal drag box UX (no resize handles)
 
-1. **update_config must persist**: deep_merge -> save_config -> load_config (applied to zedsu_backend.py line 672)
-2. **Secret leak fix**: /state now strips discord_events.webhook_url, adds has_webhook boolean (applied to zedsu_backend.py line 519)
-3. **Migration must run**: migrate_combat_regions() called inside load_config() (applied to config.py line 696)
-4. **get_search_region fix**: calls get_window_rect directly instead of broken get_asset_capture_context() (applied to zedsu_backend.py line 181)
-
-All fixes verified with python -m py_compile (exit 0).
-
-Phase 12.0 HOTFIX docs created and pushed to GitHub (commit 7cf6beb).
-Verification run 2026-04-24: 6/7 PASS, V6 deferred to Phase 12.1.
-ROADMAP and STATE updated.
-Next action: Discuss Phase 12.1 boundary, then plan and execute.
+Next: Plan Phase 12.2
