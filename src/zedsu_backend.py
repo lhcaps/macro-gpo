@@ -5,8 +5,8 @@ Per D-09c: fixed port 9761, no auth (localhost only).
 Per D-09g: 3 IPC commands — send_action, get_state, restart_backend.
 Per D-09b: hierarchical JSON state snapshot from /state.
 
-Launches ZedsuCore in a daemon thread, implements CoreCallbacks,
-serves HTTP on port 9761 for ZedsuFrontend (Tier 3).
+Starts idle. Launches ZedsuCore in a daemon thread only after start/toggle command.
+Serves HTTP on port 9761 for ZedsuFrontend (Tier 3).
 """
 import json
 import logging

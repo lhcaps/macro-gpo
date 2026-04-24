@@ -145,6 +145,8 @@ def set_region(
     if not record_valid:
         return False, record_err
 
+    name = name.strip()
+
     if "combat_regions_v2" not in config:
         config["combat_regions_v2"] = {}
 
@@ -202,6 +204,11 @@ def resolve_region(config: dict, name: str) -> Optional[Dict[str, Any]]:
         _region_log.debug("resolve_region: region %r not found in combat_regions_v2", name)
         return None
 
+    record_valid, record_err = validate_region_record(name, record)
+    if not record_valid:
+        _region_log.warning("resolve_region: invalid region %s: %s", name, record_err)
+        return None
+
     area = record["area"]
     width = right - left
     height = bottom - top
@@ -246,6 +253,11 @@ def resolve_all_regions(config: dict) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
 
     for name, record in regions.items():
+        record_valid, record_err = validate_region_record(name, record)
+        if not record_valid:
+            _region_log.warning("resolve_all_regions: skip invalid region %s: %s", name, record_err)
+            continue
+
         area = record["area"]
 
         abs_x1 = int(left + area[0] * width)

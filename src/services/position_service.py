@@ -120,8 +120,15 @@ def set_position(
     if not xy_valid:
         return False, xy_err
 
+    if not isinstance(name, str) or not name.strip():
+        return False, "name cannot be empty or whitespace-only"
+
+    if not isinstance(enabled, bool):
+        return False, f"enabled must be a bool, got {type(enabled).__name__}"
+
     norm_x = round(float(x), 6)
     norm_y = round(float(y), 6)
+    name = name.strip()
 
     if "combat_positions" not in config:
         config["combat_positions"] = {}
@@ -183,6 +190,11 @@ def resolve_position(config: dict, name: str) -> Optional[Dict[str, Any]]:
         _position_log.debug("resolve_position: position %r not found in combat_positions", name)
         return None
 
+    record_valid, record_err = validate_position_record(name, record)
+    if not record_valid:
+        _position_log.warning("resolve_position: invalid position %s: %s", name, record_err)
+        return None
+
     norm_x = record["x"]
     norm_y = record["y"]
 
@@ -226,6 +238,11 @@ def resolve_all_positions(config: dict) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
 
     for name, record in positions.items():
+        record_valid, record_err = validate_position_record(name, record)
+        if not record_valid:
+            _position_log.warning("resolve_all_positions: skip invalid position %s: %s", name, record_err)
+            continue
+
         norm_x = record["x"]
         norm_y = record["y"]
 
