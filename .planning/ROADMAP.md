@@ -137,12 +137,12 @@ Exit criteria:
 ### Phase 12.3: Combat Position Picker
 **Goal:** Click-to-capture skill/action positions portable by window ratio, replacing hardcoded coords.
 **Depends on:** Phase 12.1
-**Status**: Ready to execute — plans complete (2026-04-25)
-**Plans**: 3 plans
+**Status**: Complete (2026-04-25) — 16/16 verification checks PASS
+**Plans**: 3/3 complete
 Plans:
-- [ ] 12-3-01-PLAN.md — Wave 1: PositionPickerOverlay module (Tkinter click overlay, single-shot capture)
-- [ ] 12-3-02-PLAN.md — Wave 1: Backend pick_position handler + emergency_stop overlay cancel
-- [ ] 12-3-03-PLAN.md — Wave 2: Verification (smoke + contract)
+- [x] 12-3-01-PLAN.md — Wave 1: PositionPickerOverlay Tkinter module
+- [x] 12-3-02-PLAN.md — Wave 1B: Backend pick_position handler + emergency_stop overlay cancel
+- [x] 12-3-03-PLAN.md — Wave 2: Verification (16/16 checks PASS)
 
 Suggested names: melee, skill_1, skill_2, skill_3, ultimate, dash, block, aim_center, return_lobby.
 
@@ -311,7 +311,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.0 Contract Cleanup | 3/3 | Complete (6/7 PASS) | 2026-04-24 |
 | 12.1 Region & Position Service | 4/4 | Complete | 2026-04-24 |
 | 12.2 Smart Region Selector | 2/2 | Complete | 2026-04-24 |
-| 12.3 Combat Position Picker | 0/3 | Ready | — |
+| 12.3 Combat Position Picker | 3/3 | Complete (2026-04-25) | 2026-04-25 |
 | 12.4 Discord Event System | 1/1 | Pending | — |
 | 12.5 Phase 12 Integration | 1/1 | Pending | — |
 | 13. Tauri Operator Shell | 3/3 | Pending | — |

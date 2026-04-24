@@ -180,3 +180,17 @@ Phase 12.3 planning complete — 3 plans written and verified:
 3. 12-3-03: 12 verification checks
 
 Next: Execute Phase 12.3
+
+## Session Continuity (2026-04-25 — Phase 12.3 execute)
+
+Phase 12.3 execution complete — 3/3 plans complete:
+1. PositionPickerOverlay module: single-shot click overlay with bounds-checked normalized coords
+2. Backend pick_position handler: _active_overlay tracker + emergency_stop cancel
+3. Verification: 16/16 checks PASS
+
+All 3 exit criteria verified:
+- Click inside window only (outside returns error, NOT clamped)
+- Position survives window resize (normalized [0-1] coords)
+- emergency_stop cancels overlay safely (via _active_overlay)
+
+Next: Phase 12.4 (Discord Event System) or Phase 12.5 (Integration)
