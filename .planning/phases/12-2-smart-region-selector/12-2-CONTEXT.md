@@ -2,67 +2,65 @@
 
 **Gathered:** 2026-04-24
 **Status:** Ready for planning
+**Source:** User decisions captured in discuss-phase output
 
 <domain>
 ## Phase Boundary
 
-Phase 12.2 build backend command `select_region` — opens a window-only Tkinter overlay, user drag-selects a rectangle inside the game window, selection saved as normalized [x1,y1,x2,y2] via `region_service.set_region()`. Backend owns `save_config`/`load_config` round-trip after mutation. Phase 12.1 service layer is the foundation; Phase 13 handles Tauri overlay/settings.
+Phase 12.2 delivers a drag-to-select overlay that lets the operator visually pick a screen region, normalized to [0-1] coordinates, and save it as a named combat region in `combat_regions_v2`. The Tkinter overlay runs as a daemon thread in the Python backend (not Tauri), triggered by a `select_region` command.
 
-**In scope:**
-- Backend command `select_region` with payload `{name, kind, label, threshold, enabled}`
-- Window-only Tkinter overlay (game window rect, not fullscreen)
-- Click + drag box: minimum size threshold enforced
-- Enter = confirm (save normalized coords via `set_region` → `save_config` → `load_config`)
-- Esc = cancel (no config mutation, clean error state)
-- Normalized [x1,y1,x2,y2] relative to game window via fresh `get_window_rect()`
-- Clamp: selection cannot extend outside game window
-
-**Out of scope:**
-- Tauri overlay (Phase 13)
-- Resize handles / magnifier / multi-region editing / existing region editor
-- Position picker (Phase 12.3)
-- Discord events (Phase 12.4)
-- Settings window / Settings UI
-- Auto-hide app on Start (Phase 13)
-
+This is NOT the Tauri overlay — that belongs to Phase 13. The command contract (`POST /command` with action=`select_region`) is the boundary between Python backend and Rust frontend.
 </domain>
 
 <decisions>
 ## Implementation Decisions
 
-### D-01: Overlay Implementation — Tkinter in Python Backend
-**Decision:** Tkinter overlay in Python backend. Phase 12.1 service layer (`set_region`, `resolve_region`, `get_search_region`) is ready to use immediately. `threading.Thread(daemon=True)` pattern exists from `_yolo_capture_loop`. Tauri overlay deferred to Phase 13 Settings v3. The command contract stays the same regardless of which layer renders the overlay.
+### D-01: Overlay Implementation
+- Tkinter overlay in Python backend — set_region(), daemon thread pattern from _yolo_capture_loop are both available
+- NOT Tauri overlay in Phase 12.2
+- The overlay is purely a capture UX tool; once Enter is pressed, the backend receives normalized coords and calls `set_region()` from the service layer
 
-Backend flow:
-1. `get_window_rect(game_window_title)` — fresh rect every time
-2. MSS screenshot of game window
-3. Show Tkinter top-level overlay over that window
-4. User drags rectangle
-5. Enter confirms / Esc cancels
-6. Convert selected pixel rect → normalized [x1,y1,x2,y2]
-7. `set_region(_app_config, name, area, kind, threshold, enabled, label)`
-8. `save_config(_app_config)`
-9. `_app_config = load_config()`
-10. Return `{status: "ok", region: ...}`
+### D-02: Overlay Scope
+- Window-only — get_window_rect() fresh each time the selector opens
+- Drag clamp within window bounds (cannot drag outside the game window)
+- NOT full screen — only covers the target game window
+- Uses `game_window_title` from config to identify the target window
 
-### D-02: Overlay Scope — Window-Only
-**Decision:** Overlay covers game window only, not full screen. Full screen risks user selecting outside the game window, producing invalid normalized coords. `get_window_rect()` called fresh on each selector open. Drag clamped to window bounds. Normalized coords are relative to window, not monitor.
+### D-03: Selector UX
+- Minimal drag box only — no resize handles
+- Click + drag to define region
+- Enter key confirm (saves region)
+- Esc key cancel (no mutation)
+- Minimum 5x5 pixel threshold (drag smaller than this is discarded as accidental click)
+- Region stored as `combat_regions_v2[name]` with normalized [x1, y1, x2, y2] area
 
-### D-03: Selector UX — Minimal Drag Box Only
-**Decision:** Simple click + drag box. No resize handles, no corner manipulation, no magnifier. Enter = save. Esc = cancel. Minimum size threshold enforced to prevent accidental tiny regions.
+### D-04: Command Contract
+- Frontend sends `POST /command` with `{"action": "select_region", "payload": {"name": "combat_scan"}}`
+- Backend spawns daemon overlay thread, responds immediately `{"status": "ok", "selecting": true}`
+- Overlay blocks input on game window; when Enter pressed, calls `set_region()` then responds to frontend
+- When Esc pressed, cancels and responds `{"status": "ok", "cancelled": true}`
+- Frontend polls /state or receives response when overlay closes
 
-Rich selector (resize handles, annotation tool features) is deferred to optional Phase 19 or Settings v3, after production flow is stable.
+### D-05: Normalization
+- Region coords normalized to [0, 1] relative to window dimensions using same pattern as `resolve_region()`:
+  - `norm_x1 = (abs_x1 - window_left) / window_width`
+  - `norm_y1 = (abs_y1 - window_top) / window_height`
+  - `norm_x2 = (abs_x2 - window_left) / window_width`
+  - `norm_y2 = (abs_y2 - window_top) / window_height`
 
-### D-04: Cancel Behavior — No Config Mutation
-**Decision:** Esc cancels without any config change. No partial saves, no intermediate state. Clean cancel state returned to caller.
+### D-06: Service Layer Integration
+- Backend calls `set_region()` from `src.services.region_service` (Phase 12.1)
+- `set_region()` validates area and writes to `config["combat_regions_v2"][name]`
+- Backend owns `save_config()` + `load_config()` round-trip after `set_region()` succeeds
+- Service layer does NOT call `save_config()` — per Phase 12.1 contract
 
-### Agent's Discretion
-- Exact minimum size threshold (suggest: 5x5 pixel minimum)
-- Overlay visual styling (border color, label text format, cursor style)
-- Error message text for no game window found
-- Whether selector blocks backend HTTP server (non-blocking via daemon thread, consistent with `_yolo_capture_loop`)
-- Hotkey for triggering `select_region` from backend side (F6 mentioned in prior phases; Tauri-side F6 binding belongs in Phase 13)
-
+### the agent's Discretion
+- Exact overlay styling (border color, line width, label font/format)
+- Minimum size threshold value (locked to 5x5 pixels per D-03, but exact enforcement is agent's choice)
+- Error message text when window not found
+- How the live region label is formatted (e.g., "125 x 80px" vs "125 x 80 (12.0% of window)")
+- Overlay cursor style (crosshair, default, etc.)
+- Whether to show normalized preview coords during drag
 </decisions>
 
 <canonical_refs>
@@ -70,92 +68,60 @@ Rich selector (resize handles, annotation tool features) is deferred to optional
 
 **Downstream agents MUST read these before planning or implementing.**
 
-### Phase 12.1 Service Layer
-- `.planning/phases/12-1-region-position-service/12-1-01-PLAN.md` — Region service: `set_region()`, `resolve_region()`, `validate_region_record()`, schema `{area, kind, threshold, enabled, label}`
-- `.planning/phases/12-1-region-position-service/12-1-03-PLAN.md` — Backend commands wiring: `get_regions`, `set_region`, etc. Backend owns `save_config`/`load_config` after mutations
-- `.planning/phases/12-1-region-position-service/12-1-CONTEXT.md` — Service layer decisions: new module in `src/services/`, resolve calls `get_window_rect()` every time
+### Phase 12.1 — Service Layer (predecessor)
+- `src/services/region_service.py` — set_region(), validate_area(), validate_region_record() — follow same patterns
+- `src/services/__init__.py` — module structure
 
-### Phase 12.0 Contract
-- `.planning/phases/12-0-contract-cleanup/12-0-02-HOTFIX.md` — `get_search_region` fix: calls `get_window_rect()` directly
-
-### Config Schema
-- `src/utils/config.py` lines 200-230 — `combat_regions_v2` schema: `{name: {area, kind, threshold, enabled, label}}`
-- `src/utils/config.py` lines 223-273 — `migrate_combat_regions()`: legacy → v2 normalized [0-1] migration
-
-### Backend Integration
-- `src/zedsu_backend.py` — Backend HTTP server (port 9761), action dispatch pattern at ~line 651, `save_config`/`load_config` round-trip
-- `src/services/region_service.py` — Phase 12.1 region service module (creates during Phase 12.1 execute)
-
-### Bridger Reference
-- `bridger_source/src/BridgerBackend.py` lines 451-603 — `OcrRegionSelector`: Tkinter Canvas, screenshot bg, draggable box, normalized [0-1] coords, Enter/Esc bindings
-- `bridger_source/src/BridgerBackend.py` lines 606-640 — `_run_region_selector()`: daemon thread pattern
+### Backend Patterns
+- `src/zedsu_backend.py` — do_POST handler (lines 636+), _yolo_capture_loop daemon thread pattern (lines 392+)
+- Pattern: daemon thread with `threading.Thread(..., daemon=True)` for non-blocking overlays
 
 ### Window Management
-- `src/utils/windows.py` — `get_window_rect()` with DPI awareness
+- `src/utils/windows.py` — get_window_rect() for fresh window bounds each time
 
+### Config Persistence
+- `src/utils/config.py` — save_config(), load_config() — backend owns persistence round-trip
 </canonical_refs>
-
-<code_context>
-## Existing Code Insights
-
-### Reusable Assets
-- `region_service.set_region()` from Phase 12.1: already handles `area`, `kind`, `threshold`, `enabled`, `label` fields
-- `get_window_rect()` in `windows.py`: existing window rect retrieval with DPI awareness
-- `_yolo_capture_loop()` daemon thread pattern: `threading.Thread(target=..., daemon=True).start()`
-- Backend action dispatch: `elif action == "..."` chain at ~line 651
-
-### Established Patterns
-- Config persists via `save_config()` → `load_config()` cycle (Phase 12.0)
-- Normalized [0-1] coords: all migration and config code uses this
-- Tkinter Canvas for overlays: Bridger reference uses it successfully
-- `daemon=True` threads keep backend process alive
-
-### Integration Points
-- `select_region` command added to backend action dispatcher
-- `set_region()` called with user-selected coords after Enter
-- `save_config()` called after `set_region()` (backend owns persistence)
-- `get_search_region()` uses regions for vision search hints (Phase 12.2 integration deferred to Phase 12.5)
-
-</code_context>
 
 <specifics>
 ## Specific Ideas
 
-- **Tkinter backend overlay v1**: Implementation is Tkinter in Python backend. Tauri overlay/editor is Phase 13+ concern — command contract unchanged.
-- **Minimum region size**: Suggested 5x5 pixel minimum to prevent accidental clicks from creating invalid tiny regions.
-- **No resize handles**: Phase 12.2 produces a working v1 selector. Rich editor with corner handles deferred to Phase 19 or Settings v3.
-- **Start behavior (deferred)**: Auto-hide app on Start, HUD-only mode, tray control — belongs in Phase 13 System Tray v3.
+### Exit Criteria (from ROADMAP.md)
+1. Select combat_scan → saved as [x1,y1,x2,y2] normalized
+2. Window resize → resolve_region still maps correctly (normalized coords, so always portable)
+3. Cancel does not mutate config (Esc → no set_region() call)
+4. Region is used by CombatSignalDetector or locate_image search hints
 
+### Typical Workflow
+1. Operator presses F6 (or clicks "Select Region" button in Tauri UI — Phase 13)
+2. Tkinter overlay appears over game window
+3. Operator drags box over desired area
+4. Press Enter → normalized coords saved to combat_regions_v2["combat_scan"]
+5. Overlay closes, backend responds to frontend
+
+### Overlay Technical Approach
+- Tkinter Toplevel with `overrideredirect(True)`, transparent bg, always-on-top
+- Canvas with mouse motion binding for live drag preview
+- Bind Enter/Esc to commit/cancel
+- `win32gui.SetWindowPos` to position over specific window rect
+- Daemon thread so it doesn't block the HTTP server
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-### Phase 13 (System Tray v3)
-- Auto-hide app on Start: hide main/settings window, keep HUD small or tray icon, bring game window to front
-- Tray menu: Show App / Stop / Emergency Stop
-- F1 emergency_stop still works when app is hidden
+- Phase 13: Auto-hide app on Start, tray control, HUD-only mode
+- Phase 19/Settings v3: Rich selector with resize handles
+- Phase 12.3: Position picker (click-only overlay, different pattern)
+- Phase 12.4: Discord events
+- Phase 12.5: Integration into CombatSignalDetector (use the saved regions at runtime)
+- Tauri overlay (not Python Tkinter) — belongs to Phase 13
+- F6 hotkey binding in Tauri frontend — belongs to Phase 13
 
-### Phase 19 or Settings v3 (optional)
-- Rich selector: resize handles on 4 corners, hit-testing, corner state management
-- Multi-region editing
-- Existing region drag-to-reposition
-- Zoom/magnifier lens
-
-### Phase 12.3
-- Position picker: click-to-capture overlay, stores positions in `combat_positions`
-
-### Phase 12.4
-- Discord event system: match_end, kill_milestone, combat_start, death, bot_error
-
-### Phase 12.5
-- Integration: regions/positions wired into CombatSignalDetector and bot engine
-
-None — discussion stayed within phase scope.
-
+None — Phase 12.2 scope is fully captured above
 </deferred>
 
 ---
 
-*Phase: 12-2-smart-region-selector*
-*Context gathered: 2026-04-24*
+*Phase: 12.2-smart-region-selector*
+*Context gathered: 2026-04-24 via discuss-phase decisions*
