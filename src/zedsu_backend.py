@@ -16,6 +16,9 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+# D-11.5a-02: emergency_stop releases all held game keys
+import pydirectinput
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -60,6 +63,27 @@ _app_logs = []  # last 100 entries
 _app_config = {}
 _core_instance = None
 _restart_count = 0
+_start_time = time.time()
+
+# D-11.5a-02: Safety helper — releases ALL held game keys
+# Called by emergency_stop to ensure no key is stuck after hard stop.
+def _release_all_game_keys():
+    _backend_log.warning("[EMERGENCY] Releasing all game keys...")
+    keys_to_release = {"w", "a", "s", "d", "shift", "space", "e", "r", "q", "f"}
+    try:
+        config_keys = (_app_config.get("keys") or {}).values()
+        keys_to_release.update(str(k).lower() for k in config_keys)
+    except Exception:
+        pass
+    released = []
+    for key in keys_to_release:
+        try:
+            pydirectinput.keyUp(key)
+            released.append(key)
+        except Exception:
+            pass
+    if released:
+        _backend_log.warning(f"[EMERGENCY] Released keys: {released}")
 
 # Phase 11: YOLO training capture state
 _yolo_capture_active = False
@@ -173,7 +197,8 @@ class BackendCallbacks:
     def safe_find_and_click(self, image_key: str, confidence: Optional[float] = None) -> bool:
         from src.core.vision import find_and_click
         try:
-            return find_and_click(image_key, _app_config, confidence)
+            # D-11.5f-01: pass is_running_check and log_func in correct order
+            return find_and_click(image_key, _app_config, self.is_running, self.log, confidence=confidence)
         except Exception:
             return False
 
@@ -206,7 +231,8 @@ class BackendCallbacks:
             return None
 
     def click_saved_coordinate(self, key: str, label: str, clicks: int = 1) -> bool:
-        from src.core.vision import find_and_click
+        # D-11.5g-01: import locate_image from src.core.vision
+        from src.core.vision import locate_image
         try:
             result = locate_image(key, _app_config, None)
             if result:
@@ -448,7 +474,7 @@ class ZedsuHandler(BaseHTTPRequestHandler):
         pass  # Silence default stderr logging
 
     def do_GET(self):
-        global _yolo_quality_score, _yolo_quality_warning, _yolo_quality_error
+        global _yolo_quality_score, _yolo_quality_warning, _yolo_quality_error, _app_config
 
         parsed = urlparse(self.path)
 
@@ -525,6 +551,7 @@ class ZedsuHandler(BaseHTTPRequestHandler):
         self._send_json({"error": "Not found"}, 404)
 
     def do_POST(self):
+        global _app_config, _yolo_capture_active, _yolo_capture_class, _yolo_capture_count, _yolo_capture_start_time, _yolo_capture_thread, _yolo_quality_score, _yolo_quality_checked, _yolo_quality_warning, _yolo_quality_error
         parsed = urlparse(self.path)
         if parsed.path != '/command':
             self._send_json({"error": "Not found"}, 404)
@@ -580,6 +607,37 @@ class ZedsuHandler(BaseHTTPRequestHandler):
             elif action == "resume":
                 if _core_instance:
                     _core_instance.resume()
+                self._send_json({"status": "ok"})
+
+            elif action == "toggle":
+                # D-11.5a-03: idempotent toggle — stop if running, start if idle
+                if _core_instance is not None and _core_instance._running:
+                    _core_instance.stop()
+                    _backend_log.info("[COMMAND] toggle → stopped")
+                else:
+                    _launch_core()
+                    _backend_log.info("[COMMAND] toggle → started")
+                self._send_json({"status": "ok"})
+
+            elif action == "emergency_stop":
+                # D-11.5a-02: hard stop — release keys + stop core + mark IDLE
+                global _app_status, _app_status_color
+                _release_all_game_keys()
+                if _core_instance is not None:
+                    _core_instance.stop()
+                with _state_lock:
+                    _app_status = "IDLE"
+                    _app_status_color = "#475569"
+                _backend_log.warning("[EMERGENCY] emergency_stop triggered")
+                self._send_json({"status": "ok"})
+
+            elif action == "update_config":
+                # D-11.5a-04: partial config update via deep merge
+                from src.utils.config import _deep_merge
+                if payload is None:
+                    self._send_json({"status": "error", "message": "payload required"}, 400)
+                    return
+                _app_config = _deep_merge(_app_config, payload)
                 self._send_json({"status": "ok"})
 
             # Phase 11: YOLO capture commands
@@ -715,12 +773,10 @@ def main():
         _backend_log.warning(f"Could not load config: {e}")
         _app_config = {}
 
-    # Launch ZedsuCore
-    try:
-        _launch_core()
-    except Exception as e:
-        _backend_log.error(f"Initial ZedsuCore launch failed: {e}")
-        # Continue anyway — frontend may restart
+    # D-11.5d-01: Do NOT auto-launch core on startup.
+    # Core starts only when backend receives a "start" or "toggle" command.
+    # (Removed _launch_core() from main())
+    _backend_log.info("[STARTUP] Backend launched in IDLE state — awaiting start/toggle command")
 
     # Phase 11: Validate YOLO model quality on startup (D-11d-01)
     try:
