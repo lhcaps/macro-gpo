@@ -61,10 +61,12 @@ class RegionSelectorOverlay:
 
         # Canvas item IDs for live redraw
         self._rect_id: int | None = None
-        self._label_id: int | None = None
+        self._label_bg_id: int | None = None
+        self._label_text_id: int | None = None
 
         # Tkinter instances (set in run())
         self._tk_root: Optional[tk.Tk] = None
+        self._overlay: Optional[tk.Toplevel] = None
 
         # Result
         self.result_data: Optional[dict] = None
@@ -97,6 +99,7 @@ class RegionSelectorOverlay:
 
         # Overlay window positioned exactly over the game window
         overlay = tk.Toplevel(root)
+        self._overlay = overlay
         overlay.geometry(f"{self._win_width}x{self._win_height}+{self._win_left}+{self._win_top}")
         overlay.overrideredirect(True)
         overlay.attributes("-topmost", True)
@@ -119,12 +122,18 @@ class RegionSelectorOverlay:
         canvas.bind("<B1-Motion>", self._on_drag)
         canvas.bind("<ButtonRelease-1>", self._on_release)
 
-        # Keyboard bindings
-        canvas.bind("<Return>", lambda _: self._confirm())
-        canvas.bind("<Escape>", lambda _: self._cancel())
+        # Keyboard bindings — bind on overlay and root to ensure focus works
+        overlay.bind("<Return>", lambda _: self._confirm())
+        overlay.bind("<Escape>", lambda _: self._cancel())
+        root.bind("<Return>", lambda _: self._confirm())
+        root.bind("<Escape>", lambda _: self._cancel())
 
         # Destroy binding — cancel if result not yet set (guards against overwrite)
         overlay.bind("<Destroy>", lambda _: self._on_destroy())
+
+        # Force keyboard focus so Enter/Esc work immediately
+        overlay.focus_force()
+        canvas.focus_set()
 
         root.mainloop()
 
@@ -168,9 +177,12 @@ class RegionSelectorOverlay:
         if self._rect_id is not None:
             canvas.delete(self._rect_id)
             self._rect_id = None
-        if self._label_id is not None:
-            canvas.delete(self._label_id)
-            self._label_id = None
+        if self._label_bg_id is not None:
+            canvas.delete(self._label_bg_id)
+            self._label_bg_id = None
+        if self._label_text_id is not None:
+            canvas.delete(self._label_text_id)
+            self._label_text_id = None
 
         # Draw new rectangle (semi-transparent stipple fill)
         self._rect_id = canvas.create_rectangle(
@@ -191,12 +203,12 @@ class RegionSelectorOverlay:
         ly1 = max(self._sy, self._ey)
         lx2 = lx1 + 80
         ly2 = ly1 + 18
-        self._label_id = canvas.create_rectangle(
+        self._label_bg_id = canvas.create_rectangle(
             lx1, ly1, lx2, ly2,
             fill="#1A1A1A",
             outline="",
         )
-        canvas.create_text(
+        self._label_text_id = canvas.create_text(
             lx1 + 4, ly1 + 9,
             text=label_text,
             font=("Segoe UI", 10),
@@ -230,11 +242,16 @@ class RegionSelectorOverlay:
         if w_px < 5 or h_px < 5:
             return
 
-        # Normalize using LOCAL canvas coords — NOT absolute screen coords
-        norm_x1 = max(0.0, min(self._sx / self._win_width, 1.0))
-        norm_y1 = max(0.0, min(self._sy / self._win_height, 1.0))
-        norm_x2 = max(0.0, min(self._ex / self._win_width, 1.0))
-        norm_y2 = max(0.0, min(self._ey / self._win_height, 1.0))
+        # Normalize using LOCAL canvas coords — use min/max so reverse drag works
+        # min/max ensures x1<x2 and y1<y2 regardless of drag direction
+        x1 = min(self._sx, self._ex)
+        y1 = min(self._sy, self._ey)
+        x2 = max(self._sx, self._ex)
+        y2 = max(self._sy, self._ey)
+        norm_x1 = max(0.0, min(x1 / self._win_width, 1.0))
+        norm_y1 = max(0.0, min(y1 / self._win_height, 1.0))
+        norm_x2 = max(0.0, min(x2 / self._win_width, 1.0))
+        norm_y2 = max(0.0, min(y2 / self._win_height, 1.0))
 
         self.result_data = {
             "action": "confirm",
@@ -242,7 +259,7 @@ class RegionSelectorOverlay:
             "name": self.region_name,
         }
         self.result_event.set()
-        self._root().quit()
+        self._close()
 
     def _cancel(self) -> None:
         """Esc / destroy handler — abort without mutation."""
@@ -252,7 +269,37 @@ class RegionSelectorOverlay:
 
         self.result_data = {"action": "cancel"}
         self.result_event.set()
-        self._root().quit()
+        self._close()
+
+    def request_cancel(self, message: str = "Region selection timed out") -> None:
+        """
+        Thread-safe cancellation from the HTTP handler thread.
+        Uses root.after(0, ...) to schedule _close() on the Tk thread.
+        """
+        if self.result_event.is_set():
+            return
+        self.result_data = {"action": "error", "message": message}
+        self.result_event.set()
+        if self._tk_root is not None:
+            self._tk_root.after(0, self._close)
+
+    def _close(self) -> None:
+        """
+        Destroy Toplevel and root cleanly. Called from the Tk thread.
+        """
+        try:
+            if self._overlay is not None:
+                self._overlay.destroy()
+                self._overlay = None
+        except Exception:
+            pass
+        try:
+            if self._tk_root is not None:
+                self._tk_root.quit()
+                self._tk_root.destroy()
+                self._tk_root = None
+        except Exception:
+            pass
 
     def _on_destroy(self) -> None:
         """

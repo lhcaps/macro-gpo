@@ -951,7 +951,7 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                 from src.services.region_service import set_region
                 from src.overlays.region_selector import RegionSelectorOverlay
 
-                payload_data = data.get("payload", {})
+                payload_data = data.get("payload") or {}
                 region_name = payload_data.get("name", "combat_scan")
 
                 window_title = _app_config.get("game_window_title", "")
@@ -974,6 +974,9 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                         overlay.run()
                     except Exception as e:
                         _backend_log.error(f"[SELECT_REGION] Overlay thread error: {e}")
+                        if not overlay.result_event.is_set():
+                            overlay.result_data = {"action": "error", "message": f"Overlay error: {e}"}
+                            overlay.result_event.set()
 
                 # NON-daemon thread so HTTP handler can join() it
                 overlay_thread = threading.Thread(target=_run_overlay, name="RegionSelector")
@@ -986,14 +989,16 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                 # -- HTTP handler owns ALL result processing below this line --
 
                 if result is None:
-                    # Timeout
+                    # Timeout — request cancel from handler thread, then respond
+                    overlay.request_cancel("Region selection timed out")
+                    overlay_thread.join(timeout=5.0)
                     self._send_json({"status": "error", "message": "Region selection timed out"}, 408)
                     return
 
                 action_type = result.get("action")
 
                 if action_type == "error":
-                    # Window not found (set inside overlay thread)
+                    # Window not found or overlay crash (set inside overlay thread)
                     self._send_json({"status": "error", "message": result.get("message", "Unknown error")}, 500)
                     return
 
@@ -1021,6 +1026,10 @@ class ZedsuHandler(BaseHTTPRequestHandler):
                     _backend_log.info(f"[SELECT_REGION] Region saved: {region_name} area={area}")
                     self._send_json({"status": "ok", "region": region_name, "area": area})
                     return
+
+                # Unknown action_type — shouldn't happen but handle gracefully
+                _backend_log.warning(f"[SELECT_REGION] Unknown selector result action: {action_type}")
+                self._send_json({"status": "error", "message": f"Unknown selector result: {action_type}"}, 500)
 
             else:
                 self._send_json({"error": f"Unknown action: {action}"}, 400)
