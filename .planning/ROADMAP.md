@@ -156,10 +156,11 @@ Exit criteria:
 ### Phase 12.4: Discord Event System
 **Goal:** Transform Discord from "send a message" into an event policy layer. Core/Engine events dispatched to Discord with structured payloads and screenshot capture.
 **Depends on:** Phase 12.2, Phase 12.3
-**Status**: In Progress (blockers fixed 2026-04-25)
-**Plans**: 1 plan (implementation started)
+**Status**: 12.4-01 Complete; 12.4-02 Planned (pending execution)
+**Plans**: 2 plans
 Plans:
-- [x] 12-4-01-PLAN.md — Worker & multipart fixes: QueuedDiscordEvent wrapper, worker sends real events, bot_error sanitizer wired, payload_json multipart format. FSM event wiring pending.
+- [x] 12-4-01-PLAN.md — Worker & multipart fixes: QueuedDiscordEvent wrapper, worker sends real events, bot_error sanitizer wired, payload_json multipart format
+- [ ] 12-4-02-PLAN.md — FSM Event Wiring: wire 5 event types (match_end, kill_milestone, combat_start, death, bot_error) into bot_engine.py with death guard against double-send
 
 Exit criteria:
 - Test webhook command works
@@ -317,7 +318,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.1 Region & Position Service | 4/4 | Complete | 2026-04-24 |
 | 12.2 Smart Region Selector | 2/2 | Complete | 2026-04-24 |
 | 12.3 Combat Position Picker | 3/3 | Complete (hotfix 2026-04-25) | 2026-04-25 |
-| 12.4 Discord Event System | 1/1 | In Progress (blockers fixed 2026-04-25) | — |
+| 12.4 Discord Event System | 1/2 | 12.4-01 Complete; 12.4-02 Planned | — |
 | 12.5 Phase 12 Integration | 1/1 | Pending | — |
 | 13. Tauri Operator Shell | 3/3 | Pending | — |
 | 14. Real Production Build | 4/4 | Pending | — |
