@@ -152,13 +152,13 @@ class DeathClassifier:
         death_risk: float,
     ) -> tuple[DeathReason, float, dict]:
         """
-        Apply classification rules in priority order.
+        Apply classification rules in priority order (Phase 12.5.1: zone checked before combat).
 
-        Rules:
+        Rules (Phase 12.5.1 order):
         1. crowd_death: in_combat AND crowd_risk >= 0.70 AND >= 2 visible enemies
-        2. combat_death: in_combat OR hit_confirmed (but not crowd_death)
-        3. zone_death: edge_risk >= 0.70 (zone hazard damage)
-        4. stuck_death: stuck_score >= 0.70 (not yet implemented — placeholder)
+        2. zone_death: edge_risk >= 0.70 (zone hazard — checked BEFORE combat_death)
+        3. combat_death: in_combat OR hit_confirmed (but not crowd, not zone)
+        4. stuck_death: stuck_score >= 0.70 (placeholder — needs situation model)
         5. target_lost_death: target_lost_ms >= 3000 (lost target, died trying to find it)
         6. unknown: fallback
         """

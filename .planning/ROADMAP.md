@@ -179,13 +179,13 @@ Exit criteria:
 **Status**: Complete (2026-04-25) — 7/7 plans complete, harness 57/57 PASS
 **Plans**: 7 plans
 Plans:
-- [ ] 12-5-00-PLAN.md — Phase 12 regression guard: py_compile all Phase 12 files, verify Discord event paths, check secret leak regression, verify config schema
-- [ ] 12-5-01-PLAN.md — Combat telemetry JSONL: MatchTelemetry singleton, CombatTick dataclass, timeline.jsonl output, hook points in bot_engine.py
-- [ ] 12-5-02-PLAN.md — Target memory: TargetTrack + TargetDecision, EMA confidence, grace period for visual loss, multi-enemy stability
-- [ ] 12-5-03-PLAN.md — Situation/risk model: CombatSituation dataclass, crowd_risk formula, recommended_intent (engage/pursue/reposition/flee/scan)
-- [ ] 12-5-04-PLAN.md — Scored movement policy: MovementPolicy scoring, replace random pattern selection in perform_dynamic_combat_movement, intent-to-movement mapping
-- [ ] 12-5-05-PLAN.md — Death classifier: DeathClassifier, DeathReason labels, metadata attached to Discord death event, summary.json death_reason
-- [ ] 12-5-06-PLAN.md — AI verification harness: verify_combat_ai.py smoke tests for compile/import/config/logic/telemetry/regression
+- [x] 12-5-00-PLAN.md — Phase 12 regression guard: py_compile all Phase 12 files, verify Discord event paths, check secret leak regression, verify config schema
+- [x] 12-5-01-PLAN.md — Combat telemetry JSONL: MatchTelemetry singleton, CombatTick dataclass, timeline.jsonl output, hook points in bot_engine.py
+- [x] 12-5-02-PLAN.md — Target memory: TargetTrack + TargetDecision, EMA confidence, grace period for visual loss, multi-enemy stability
+- [x] 12-5-03-PLAN.md — Situation/risk model: CombatSituation dataclass, crowd_risk formula, recommended_intent (engage/pursue/reposition/flee/scan)
+- [x] 12-5-04-PLAN.md — Scored movement policy: MovementPolicy scoring, replace random pattern selection in perform_dynamic_combat_movement, intent-to-movement mapping
+- [x] 12-5-05-PLAN.md — Death classifier: DeathClassifier, DeathReason labels, metadata attached to Discord death event, summary.json death_reason
+- [x] 12-5-06-PLAN.md — AI verification harness: verify_combat_ai.py smoke tests for compile/import/config/logic/telemetry/regression
 
 Exit criteria:
 - Each match creates runs/matches/match_XXXX/timeline.jsonl
@@ -215,21 +215,35 @@ Exit criteria:
 - camera correction uses real center_error_x
 - zone_death checked before combat_death
 
-### Phase 13: Tauri Operator Shell: Tray, Settings, HUD Placement
-**Goal:** Complete the v3 operator shell — Tauri tray with state colors, dynamic HUD positioning, Settings surface. Not a UI redesign; a completion of the shell around the v3 architecture.
-**Depends on:** Phase 10, Phase 12.5
+### Phase 13: Zedsu Operator Shell Redesign
+**Goal:** Build a premium, operator-grade Tauri shell for controlling, configuring, and observing the bot: tray-first operation, compact live HUD, full Settings v3, combat AI visibility, detection setup workflow, logs/diagnostics, and safe config editing. Not a UI redesign; a completion of the shell around the v3 architecture. Transform Zedsu from "tool that barely runs" into a real operator product.
+**Depends on:** Phase 10, Phase 12.5.1
+**Requirements**: New Phase 13 requirements TBD via discuss-phase
 **Status**: Pending
-**Plans**: 3 plans
+**Plans**: 7 plans
 Plans:
-- [ ] 13-01-PLAN.md — Tauri tray: Gray idle, Green running, Yellow degraded, Red error; menu: Start, Stop, Pause/Resume, Open HUD, Open Settings, Open Logs, Restart Backend, Exit
-- [ ] 13-02-PLAN.md — Dynamic HUD positioning: remove hardcoded x=1700, use monitor size for top-right with margin, support basic multi-monitor
-- [ ] 13-03-PLAN.md — Settings window v3: read sanitized /state, update_config persists, region/position list, Discord event toggles, YOLO model status
+- [ ] 13-00-PLAN.md — Wave 1: UI design system foundation: tokens.css, components.css, app.css, color/spacing/typography/motion tokens, base component library
+- [ ] 13-01-PLAN.md — Wave 1: Tray v2: state-colored tray icon (Gray/Green/Blue/Amber/Red), operational tray menu, left/right click behavior, graceful backend stop on quit, restart backend
+- [ ] 13-02-PLAN.md — Wave 1: HUD v2 dynamic placement: remove hardcoded x=1700, dynamic monitor-aware positioning, compact/expanded HUD modes, risk/intent display, placement persists in config
+- [ ] 13-03-PLAN.md — Wave 2: Operator shell layout: AppShell, sidebar navigation, top command bar, overview dashboard page, backend state polling, state normalization layer
+- [ ] 13-04-PLAN.md — Wave 2: Settings v3: Runtime, Combat Detection, Combat AI, Positions, Discord, YOLO, Logs tabs — card-based, navigable, premium
+- [ ] 13-05-PLAN.md — Wave 3: Region/position UX integration: region list with status, pick region flow, position list with status, pick position flow, test/resolve buttons
+- [ ] 13-06-PLAN.md — Wave 3: Diagnostics & QoL: setup issue center, last event timeline, copy diagnostics bundle, open config/logs/runs folders, toast notifications, error boundary
+- [ ] 13-07-PLAN.md — Wave 3: Verification: cargo check, cargo build, backend state contract smoke, no webhook leak, HUD never off-screen, Settings persists, tray works without main window
 
 Exit criteria:
 - Tray works without opening main window
 - Exit gracefully stops backend
-- HUD never spawns off-screen
-- Settings can edit config and survive restart
+- HUD never spawns off-screen (no hardcoded x=1700)
+- Operator shell is card-based, navigable, and premium
+- Settings can edit config and persist across restart
+- Region/position flows work from UI
+- Discord webhook can be configured/tested without leaking secret
+- YOLO status/capture/model management visible
+- Combat AI telemetry/config visible
+- cargo check/build pass
+- Do not rewrite bot logic
+- Do not modify Phase 12.5 AI behavior
 
 ### Phase 14: Real Production Build & Packaging
 **Goal:** v3 production build — NOT the legacy Tkinter build_exe.py packaging. Tauri frontend + PyInstaller backend as separate executables.
@@ -356,7 +370,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.4 Discord Event System | 2/2 | Complete | 2026-04-25 |
 | 12.5 Combat AI Foundation | 7/7 | Complete | 2026-04-25 |
 | 12.5.1 AI Wiring Hardening | 1/1 | Complete | 2026-04-25 |
-| 13. Tauri Operator Shell | 3/3 | Pending | — |
+| 13. Zedsu Operator Shell Redesign | 8/8 | Pending | — |
 | 14. Real Production Build | 4/4 | Pending | — |
 | 15. Replay Benchmark | 3/3 | Pending | — |
 | 16. Runtime Observability | 2/2 | Pending | — |
