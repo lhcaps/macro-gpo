@@ -5,15 +5,15 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 12.2 — Smart Region Selector (complete)
-Active subphase: 12.2 Smart Region Selector (complete)
+**Current focus:** Phase 12.3 — Combat Position Picker (discuss done)
+Active subphase: 12.3 Combat Position Picker (discuss done)
 
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.2 complete)
-Phase: 12.2 complete (2/2 plans, 2026-04-24); next: Phase 12.3
-Status: Phase 12.2 Smart Region Selector complete — overlay + backend handler done
-Next: Phase 12.3 Combat Position Picker
+Phase: 12.2 complete (2/2 plans, 2026-04-24); 12.3 context ready; next: Phase 12.3
+Status: Phase 12.2 Smart Region Selector complete; Phase 12.3 context captured
+Next: Phase 12.3 Combat Position Picker (planning)
 
 Progress: [▓▓▓▓▓▓▓▓░░] v2 complete, v3 Phase 9-12.2 complete (12.3-12.5 pending)
 
@@ -167,3 +167,11 @@ Phase 12.2 discuss complete — context captured with 3 decisions:
 3. Minimal drag box UX (no resize handles)
 
 Next: Plan Phase 12.2
+
+## Session Continuity (2026-04-25 — Phase 12.3 discuss)
+
+Phase 12.3 context captured — 2 decisions:
+1. Single-shot click overlay (closes immediately after one click)
+2. Frontend sends position name via payload (clean separation)
+
+Next: Plan Phase 12.3
