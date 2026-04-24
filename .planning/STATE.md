@@ -10,11 +10,11 @@ See: `.planning/PROJECT.md` (updated 2026-04-24)
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp
-Phase: 10 (Modern Rust/Tauri GUI)
-Status: Complete — 4/4 plans, cargo check PASS, cargo build PASS
-Next: $gsd-discuss-phase 11
+Phase: 11 (YOLO Training Integration)
+Status: Context gathered — Ready for planning
+Next: $gsd-plan-phase 11
 
-Progress: [▓▓▓▓░░░░░░] v2 complete, v3 Phase 9-10 complete, Phase 11 next
+Progress: [▓▓▓▓▓░░░░░] v2 complete, v3 Phase 9-10 complete, Phase 11 context done
 
 ## Accumulated Context
 
@@ -65,6 +65,17 @@ Progress: [▓▓▓▓░░░░░░] v2 complete, v3 Phase 9-10 complete, 
 - JS polls `get_backend_state` every ~1s to drive HUD updates
 - System tray basic setup (Phase 13 deepens tray functionality)
 
+### Decisions (Milestone v3 — Phase 11)
+
+- Hybrid data collection — in-app toggle capture + folder import
+- Toggle capture mode — 1 frame/s continuous capture, pause/resume
+- Training via CLI only — no in-app training UI; `python train_yolo.py --epochs 100`
+- Auto-detect hardware — CUDA GPU if available, CPU fallback with 2-4h estimate
+- Multi-version model storage with auto-backup on train (`yolo_gpo_backup_YYYYMMDD_HHMM.onnx`)
+- Model list in Settings UI with activation/rollback
+- Validation + warnings on startup — inference test on val set, precision < 60% warning
+- Model quality in HUD (OK / No model / Quality: 73%)
+
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
@@ -89,6 +100,6 @@ Progress: [▓▓▓▓░░░░░░] v2 complete, v3 Phase 9-10 complete, 
 ## Session Continuity
 
 Last session: 2026-04-24
-Stopped at: Phase 10 (Modern Rust/Tauri GUI) discuss-phase complete
-Resume file: .planning/phases/10-rust-gui/10-CONTEXT.md
+Stopped at: Phase 11 (YOLO Training Integration) discuss-phase complete
+Resume file: .planning/phases/11-yolo-training/11-CONTEXT.md
 
