@@ -74,7 +74,7 @@ completed: 2026-04-25
 
 ## Decisions Made
 
-- **Conditional npm install**: Script only runs `npm install` if `node_modules/` is missing, saving build time on subsequent runs
+- **Static copy (no npm)**: Frontend is plain HTML/CSS/JS — no Vite, no Node.js. `build_frontend.ps1` copies `index.html` and `src/` directory to `src/ZedsuFrontend-dist/` before cargo build.
 - **Binary rename**: Tauri outputs `zedsu_frontend.exe`; script copies/renames to `Zedsu.exe` in dist/Zedsu/
 - **Error handling**: Script exits with non-zero code if any step fails, propagates to orchestrator
 

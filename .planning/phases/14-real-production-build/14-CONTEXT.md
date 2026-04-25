@@ -51,7 +51,7 @@ Exit criteria:
 - **D-14-11:** Output name: `ZedsuBackend.exe` (not `Zedsu.exe` — that name reserved for Tauri)
 
 ### Tauri Build (Rust Frontend)
-- **D-14-12:** `frontendDist` must be pre-built: run `npm run build` inside `src/ZedsuFrontend/` BEFORE `cargo build` or `tauri build` to produce `src/ZedsuFrontend-dist/`
+- **D-14-12:** `frontendDist` must be pre-built: run `scripts/build_frontend.ps1` to copy static HTML/CSS/JS to `src/ZedsuFrontend-dist/` BEFORE `cargo build`
 - **D-14-13:** Add app icon to bundle: `src/ZedsuFrontend/icons/icon.ico` → `icon` field in `tauri.conf.json` (currently empty)
 - **D-14-14:** BackendManager spawns `ZedsuBackend.exe` (not any dynamic name) from same directory as `Zedsu.exe`
 - **D-14-15:** Bundle targets: `targets: "all"` in `tauri.conf.json` (Windows .exe + NSIS installer + MSI)
@@ -137,7 +137,7 @@ Exit criteria:
 - The two-process model (Tauri + PyInstaller Python) mirrors the Bridger pattern: `bridger.exe` (Rust) + `BridgerBackend.exe` (Python/PyInstaller)
 - Backend path in BackendManager should use relative path: `Command::new("ZedsuBackend.exe")` — same directory as Tauri exe at runtime
 - Icon: run `generate_app_icon.py` to create `icon.ico` in `src/ZedsuFrontend/icons/`, reference as `icons/icon.ico` in `tauri.conf.json`
-- Frontend build: `cd src/ZedsuFrontend && npm run build` → outputs to `src/ZedsuFrontend-dist/` which is the `frontendDist` in tauri.conf.json
+- Frontend build: `scripts/build_frontend.ps1` copies static HTML/CSS/JS to `src/ZedsuFrontend-dist/` which is the `frontendDist` in tauri.conf.json
 
 </specifics>
 
