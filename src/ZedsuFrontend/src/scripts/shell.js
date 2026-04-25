@@ -61,22 +61,23 @@ function updateShellState(data) {
 // Command Proxy
 // ============================================================
 
-async function sendCommand(cmd, params) {
+async function sendCommand(action, payload = null) {
   try {
     const resp = await fetch('http://localhost:9761/command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: cmd, ...params }),
+      body: JSON.stringify({ action, payload }),
     });
-    const data = await resp.json();
-    if (!data.success) {
-      window.ToastApi?.error(data.error || 'Command failed');
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.status === 'error') {
+      window.ToastApi?.error(data.message || data.error || `HTTP ${resp.status}`);
     } else {
-      window.ToastApi?.success(`${cmd} executed`);
+      window.ToastApi?.success(`${action} executed`);
     }
     return data;
   } catch (err) {
     window.ToastApi?.error(`Failed to send command: ${err.message}`);
+    return { status: 'error', message: err.message };
   }
 }
 
@@ -93,7 +94,7 @@ btnEStop?.addEventListener('click', () => {
 });
 btnRestart?.addEventListener('click', () => {
   window.ToastApi?.info('Restarting backend...');
-  sendCommand('restart');
+  sendCommand('restart_backend');
 });
 btnHud?.addEventListener('click', () => window.HudApi?.toggle());
 

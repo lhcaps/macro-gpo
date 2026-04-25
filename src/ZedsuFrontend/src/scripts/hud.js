@@ -86,8 +86,8 @@ function updateHudDisplay() {
   // Latency
   hudLatency.textContent = `${state.latency}ms`;
   hudLatency.className = 'font-mono text-sm ' + (
-    state.latency > 100 ? 'text-warning' :
-    state.latency > 200 ? 'text-error' : 'text-cyan'
+    state.latency > 200 ? 'text-error' :
+    state.latency > 100 ? 'text-warning' : 'text-cyan'
   );
 
   // Match info
