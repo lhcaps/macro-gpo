@@ -315,7 +315,7 @@ Plans:
 ### Phase 14.6: Operator Shell Launch UX
 **Goal:** Change app launch UX so Operator Shell is visible at startup, HUD does not auto-show, and X button hides to tray instead of quitting.
 **Depends on:** Phase 14.5
-**Status**: Pending (implementation in progress)
+**Status**: Complete (2026-04-26) — UX verified, smoke test ALL PASSED
 **Plans**: 1 plan
 
 **Changes:**
@@ -432,8 +432,8 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.5.1 AI Wiring Hardening | 1/1 | Complete | 2026-04-25 |
 | 13. Zedsu Operator Shell Redesign | 8/8 | Complete | 2026-04-25 |
 | 14. Real Production Build | 4/4 | Complete | 2026-04-26 |
-| 14.5 Production Tree Cleanup | 1/1 (5 commits) | Complete | 2026-04-26 |
-| 14.6 Operator Shell Launch UX | 1/1 | Pending | — |
+| 14.5 Production Tree Cleanup | 1/1 (5 work items, 3 commits) | Complete | 2026-04-26 |
+| 14.6 Operator Shell Launch UX | 1/1 | Complete | 2026-04-26 |
 | 15. Replay Benchmark | 3/3 | Pending | — |
 | 16. Runtime Observability | 2/2 | Pending | — |
 | 17. Combat Quality & YOLO | 2/2 | Pending | — |
