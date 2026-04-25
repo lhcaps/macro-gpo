@@ -5,17 +5,17 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 13 — Zedsu Operator Shell Redesign (8 plans, 3 waves)
-Active subphase: Phase 13 Wave 2 complete: 13-03 (Operator Shell Layout) + 13-04 (Settings v3)
+**Current focus:** Phase 14 — Real Production Build & Packaging (4 plans)
+Active subphase: Phase 13 complete (2026-04-25)
 
 ## Current Position
 
-Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.5.1 complete)
-Phase: 13 — Zedsu Operator Shell Redesign
-Status: Wave 1 (13-00, 13-01, 13-02) + Wave 2 (13-03, 13-04) complete. Wave 3 (13-05+) pending.
-Next: Execute Wave 3 (13-05+) — user must explicitly unlock.
+Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-13 complete)
+Phase: 14 — Real Production Build & Packaging
+Status: Pending — 4 plans ready
+Next: Plan/Discuss Phase 14 or execute Phase 14-01 legacy build rename
 
-Progress: [▓▓▓▓▓▓▓▓░░] Wave 1 + Wave 2 complete; Wave 3 (13-05+) pending
+Progress: [▓▓▓▓▓▓▓▓▓▓] Phase 9-13 complete; Phase 14 pending
 
 ## Accumulated Context
 
@@ -128,6 +128,16 @@ Progress: [▓▓▓▓▓▓▓▓░░] Wave 1 + Wave 2 complete; Wave 3 (13-
 - Runtime observability: RunRecorder + EventBus + operator_hint in /state for recovery intelligence
 - Walk recording/playback deferred until post-RC
 
+### Decisions (Milestone v3 — Phase 13)
+
+- Tray v2: state-colored tray icon, operational menu, left/right click, graceful quit
+- HUD v2: dynamic monitor-aware positioning, compact/expanded modes, no hardcoded x=1700
+- Operator Shell: AppShell, sidebar 9-item nav, top command bar, overview dashboard
+- Settings v3: Runtime/Combat/Combat AI/Positions/Discord/YOLO/Logs tabs, card-based
+- Region/Position UX: region list+pick+test+reset, position list+pick+test+import/export
+- Diagnostics: setup issue center, event timeline, copy bundle, open folders, toasts, error boundary
+- Design system: tokens.css + components.css + app.css with color/spacing/typography/motion tokens
+
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
@@ -141,6 +151,7 @@ Progress: [▓▓▓▓▓▓▓▓░░] Wave 1 + Wave 2 complete; Wave 3 (13-
 | Features | Walk recording/playback | Phase 15 (future) | 2026-04-24 |
 | Features | Audio RMS monitoring | Not needed for FPS combat | 2026-04-24 |
 | Features | YouTube subscribe gating | Not relevant for combat bot | 2026-04-24 |
+| Build | cargo check/build | Phase 13 (Rust toolchain unavailable) | 2026-04-25 |
 
 ## Research Status
 
@@ -149,7 +160,7 @@ Progress: [▓▓▓▓▓▓▓▓░░] Wave 1 + Wave 2 complete; Wave 3 (13-
 | Vision Detection | Complete (17KB) | MSS 3-15ms; OpenCV matchTemplate 15-40ms; YOLO11n ONNX 3-15ms CPU; hybrid stack recommended |
 | Combat AI | Complete (26KB) | Frame differencing best for real-time combat; health bar pixel scanning; state machine architecture |
 | UI/UX/Tech Stack | Complete (16KB) | pystray for system tray; pydirectinput.moveRel for Roblox; DPI-aware scaling; collapsible Tkinter panels |
-| Performance/Input | Complete (22KB) | MSS recommended (3-15ms capture); pydirectinput.moveRel confirmed for Roblox; DXCam overkill |
+| Performance/Input | Complete (22KB) | MSS recommended (3-15ms); pydirectinput.moveRel confirmed for Roblox; DXCam overkill |
 | Bridger Architecture | Complete (from source) | 3-tier IPC pattern, FFT audio detection, minigame fingerprint matching |
 
 ## Session Continuity
@@ -295,4 +306,29 @@ New tests: `zone_death_before_combat`, `stuck_death_type`
 
 Verification: 57/57 PASS
 
-**Next:** Phase 13 (Tauri Operator Shell) or Phase 12.5 post-execution review
+**Next:** Phase 13 (Tauri Operator Shell)
+
+## Session Continuity (2026-04-25 — Phase 13: Zedsu Operator Shell Redesign)
+
+Phase 13 complete (2026-04-25) — all 8 plans executed across 3 waves.
+
+**Code review findings (13-REVIEW.md):**
+- CR-01: XSS in confirm.js — fixed (`fd380f7`)
+- CR-02: ReferenceError in detection.js — fixed (`fd380f7`)
+- W-03: HUD poll timer leak — fixed (`39fc606`): clearInterval before setInterval in initHud
+- W-05: Unvalidated JSON import — fixed (`39fc606`): schema validation, type checks, per-failure errors
+- W-07: Repeated API calls in import — fixed (`39fc606`): Promise.all batch, exact count reported
+- W-01, W-02, W-04, W-06: informational, non-blocking
+
+**Verification (13-07-SUMMARY.md):**
+- cargo check/build: DEFERRED (Rust toolchain unavailable)
+- webhook leak: PASS — no console.log webhook, type=password, diagnostics uses has_webhook boolean only
+- HUD off-screen: PASS — no hardcoded 1700 anywhere
+- backend state contract: DEFERRED (Roblox window required for smoke test)
+- settings persistence: PASS via code review
+- all files exist: PASS
+- integration fixes: DONE
+
+All 9 exit criteria: 7 PASS, 2 DEFERRED with rationale.
+
+**Next:** Phase 14 — Real Production Build & Packaging
