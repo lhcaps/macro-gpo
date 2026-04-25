@@ -1,4 +1,4 @@
-// positions.js — Combat Positions management page
+// positions.js — Combat Positions management page (Phase 13-05 enhanced)
 // Uses simple string concatenation for HTML.
 
 import * as api from '../shared/config-api.js';
@@ -33,22 +33,23 @@ export async function load(c) {
       var coords = hasPos ? ('x:' + Math.round(pos.x || 0) + ' y:' + Math.round(pos.y || 0)) : '';
       var enabled = pos && pos.enabled !== false ? 'checked ' : '';
 
-      cards += '<div class="position-card">';
+      cards += '<div class="position-card" data-position="' + name + '">';
       cards += '<div class="position-card-header">';
       cards += '<span class="position-name font-mono">' + name + '</span>';
       cards += '<label class="toggle toggle-xs"><input type="checkbox" id="pos-enabled-' + name + '" ' + enabled + 'onchange="if(window.__positionsPage)window.__positionsPage.toggleEnabled(\'' + name + '\',this.checked)" /><span class="toggle-track"></span></label>';
       cards += '</div>';
       cards += '<div class="position-card-body">';
       if (hasPos) {
-        cards += '<div class="position-coords font-mono text-xs text-muted">' + coords + '</div>';
+        cards += '<div class="position-coords font-mono text-xs text-muted" id="pos-coords-' + name + '">' + coords + '</div>';
       } else {
         cards += '<p class="text-xs text-muted">Not configured</p>';
       }
       cards += '</div>';
-      cards += '<div class="position-test-result" id="test-result-' + name + '"></div>';
+      cards += '<div class="position-test-result" id="test-result-' + name + '" style="display:none;"></div>';
       cards += '<div class="position-card-actions">';
       cards += '<button class="btn btn-xs ' + btnCls + '" onclick="if(window.__positionsPage)window.__positionsPage.pickPosition(\'' + name + '\')">' + (hasPos ? 'Repick' : 'Pick') + '</button>';
       cards += '<button class="btn btn-xs" onclick="if(window.__positionsPage)window.__positionsPage.testPosition(\'' + name + '\',event)" ' + disabled + '>Test</button>';
+      cards += '<button class="btn btn-xs" onclick="if(window.__positionsPage)window.__positionsPage.editPosition(\'' + name + '\')" ' + (hasPos ? '' : 'disabled ') + '>Edit</button>';
       cards += '<button class="btn btn-xs btn-danger-text" onclick="if(window.__positionsPage)window.__positionsPage.deletePosition(\'' + name + '\')" ' + disabled + '>Delete</button>';
       cards += '</div></div>';
     }
@@ -59,12 +60,14 @@ export async function load(c) {
     html += '<p class="section-desc">Define and manage combat action positions on screen. Pick each position by clicking its location in the game window.</p>';
     html += '</div><div class="position-grid">' + cards + '</div></div>';
 
-    html += '<div class="settings-section"><div class="section-header"><h2 class="section-title">Import / Export</h2></div><div class="section-card">';
+    html += '<div class="settings-section"><div class="section-header">';
+    html += '<h2 class="section-title">Import / Export</h2>';
+    html += '</div><div class="section-card">';
     html += '<div class="setting-row"><div class="setting-info"><span class="setting-label">Export Positions</span><p class="setting-desc">Download all positions as JSON</p></div>';
-    html += '<button class="btn btn-sm btn-secondary" onclick="if(window.__positionsPage)window.__positionsPage.exportPositions()">Export JSON</button></div>';
+    html += '<button class="btn btn-sm" onclick="if(window.__positionsPage)window.__positionsPage.exportPositions()">Export JSON</button></div>';
     html += '<div class="setting-row"><div class="setting-info"><span class="setting-label">Import Positions</span><p class="setting-desc">Load positions from JSON file</p></div>';
     html += '<input type="file" accept=".json" id="import-positions-file" style="display:none" onchange="if(window.__positionsPage)window.__positionsPage.importPositions(this)" />';
-    html += '<button class="btn btn-sm btn-secondary" onclick="document.getElementById(\'import-positions-file\').click()">Import JSON</button></div>';
+    html += '<button class="btn btn-sm" onclick="document.getElementById(\'import-positions-file\').click()">Import JSON</button></div>';
     html += '</div></div>';
     html += '</div>';
     c.innerHTML = html;
@@ -109,11 +112,56 @@ export async function load(c) {
             }
           })
           .catch(function(err) {
-            if (el) { el.innerHTML = '<span style="color:var(--color-error)">&#x2717; ' + err.message + '</span>'; el.className = 'position-test-result'; }
+            if (el) { el.innerHTML = '<span style="color:var(--color-error)">&#x2717; ' + (err.message || 'Test failed') + '</span>'; el.className = 'position-test-result'; }
           })
           .then(function() {
             if (btn) { btn.disabled = false; btn.textContent = 'Test'; }
           });
+      },
+      editPosition: function(name) {
+        var card = document.querySelector('[data-position="' + name + '"]');
+        if (!card) return;
+        var existing = card.querySelector('.position-edit-form');
+        if (existing) { existing.remove(); return; }
+        api.getPositions().then(function(positions) {
+          var pos = null;
+          for (var i = 0; i < positions.length; i++) {
+            if (positions[i].name === name) { pos = positions[i]; break; }
+          }
+          var form = document.createElement('div');
+          form.className = 'position-edit-form';
+          form.innerHTML = '<div class="coord-inputs">' +
+            '<label>X <input type="number" id="edit-px" value="' + Math.round(pos && pos.x !== undefined ? pos.x : 0) + '" step="1" style="width:100%" /></label>' +
+            '<label>Y <input type="number" id="edit-py" value="' + Math.round(pos && pos.y !== undefined ? pos.y : 0) + '" step="1" style="width:100%" /></label>' +
+            '</div>' +
+            '<div class="form-actions">' +
+            '<button class="btn btn-xs" onclick="if(window.__positionsPage)window.__positionsPage.saveEditPosition(\'' + name + '\')">Save</button>' +
+            '<button class="btn btn-xs" onclick="this.closest(\'.position-edit-form\').remove()">Cancel</button>' +
+            '</div>';
+          card.appendChild(form);
+        });
+      },
+      saveEditPosition: function(name) {
+        var x = parseInt((document.getElementById('edit-px') || {}).value) || 0;
+        var y = parseInt((document.getElementById('edit-py') || {}).value) || 0;
+        api.getPositions().then(function(positions) {
+          var pos = null;
+          for (var i = 0; i < positions.length; i++) {
+            if (positions[i].name === name) { pos = positions[i]; break; }
+          }
+          api.setPosition(name, {
+            x: x,
+            y: y,
+            enabled: pos && pos.enabled !== false,
+          }).then(function(res) {
+            if (res && res.status === 'ok') {
+              if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success(name + ' position updated');
+              load(c);
+            } else {
+              if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Failed to update position');
+            }
+          });
+        });
       },
       deletePosition: function(name) {
         if (!confirm('Delete position "' + name + '"?')) return;

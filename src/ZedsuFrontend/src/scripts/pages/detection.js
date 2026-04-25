@@ -1,4 +1,4 @@
-// detection.js — Combat Detection settings page
+// detection.js — Combat Detection settings page (Phase 13-05 enhanced)
 // Uses simple string concatenation for HTML.
 
 import * as api from '../shared/config-api.js';
@@ -50,14 +50,14 @@ export async function load(c) {
         coords = 'x:' + Math.round(region.x) + ' y:' + Math.round(region.y) + ' w:' + Math.round(region.w || 0) + ' h:' + Math.round(region.h || 0);
       }
 
-      cardsHtml += '<div class="region-card">';
+      cardsHtml += '<div class="region-card" data-region="' + name + '">';
       cardsHtml += '<div class="region-card-header">';
       cardsHtml += '<span class="region-name font-mono">' + displayName + '</span>';
       cardsHtml += '<span class="health-badge health-' + statusCls + '">' + status + '</span>';
       cardsHtml += '</div>';
       cardsHtml += '<div class="region-card-body">';
       if (hasRegion) {
-        cardsHtml += '<div class="font-mono text-xs text-muted">' + e(coords) + '</div>';
+        cardsHtml += '<div class="font-mono text-xs text-muted" id="coords-' + name + '">' + e(coords) + '</div>';
       } else {
         cardsHtml += '<p class="text-xs text-muted">No region configured</p>';
       }
@@ -65,8 +65,11 @@ export async function load(c) {
       cardsHtml += '<div class="region-card-actions">';
       cardsHtml += '<button class="btn btn-xs btn-primary" onclick="if(window.__detectionPage)window.__detectionPage.pickRegion(\'' + name + '\')">' + (hasRegion ? 'Repick' : 'Pick') + '</button>';
       cardsHtml += '<button class="btn btn-xs" onclick="if(window.__detectionPage)window.__detectionPage.testRegion(\'' + name + '\')" ' + (hasRegion ? '' : 'disabled ') + '>Test</button>';
+      cardsHtml += '<button class="btn btn-xs" onclick="if(window.__detectionPage)window.__detectionPage.editRegion(\'' + name + '\')" ' + (hasRegion ? '' : 'disabled ') + '>Edit</button>';
       cardsHtml += '<button class="btn btn-xs btn-danger-text" onclick="if(window.__detectionPage)window.__detectionPage.resetRegion(\'' + name + '\')" ' + (hasRegion ? '' : 'disabled ') + '>Reset</button>';
-      cardsHtml += '</div></div>';
+      cardsHtml += '</div>';
+      cardsHtml += '<div class="region-test-result" id="test-result-' + name + '" style="display:none;"></div>';
+      cardsHtml += '</div>';
     }
 
     var html = '<div class="settings-page">';
@@ -94,10 +97,11 @@ export async function load(c) {
     html += '</div></div>';
 
     // Region cards
-    html += '<div class="settings-section"><div class="section-header">';
-    html += '<h2 class="section-title">Screen Regions</h2>';
-    html += '<button class="btn btn-xs btn-secondary" onclick="if(window.__detectionPage)window.__detectionPage.validateAllRegions()">Validate All</button>';
-    html += '</div><p class="section-desc" style="margin-bottom:var(--space-4)">Define screen regions for combat signal detection. Pick each region by clicking its location in the game window.</p>';
+    html += '<div class="settings-section">';
+    html += '<div class="section-header">';
+    html += '<div><h2 class="section-title">Screen Regions</h2><p class="section-desc">Define screen regions for combat signal detection. Pick each region by clicking its location in the game window.</p></div>';
+    html += '<button class="btn btn-sm" onclick="if(window.__detectionPage)window.__detectionPage.validateAllRegions()">Validate All</button>';
+    html += '</div>';
     html += '<div class="region-grid">' + cardsHtml + '</div></div>';
 
     html += '</div>';
@@ -138,16 +142,66 @@ export async function load(c) {
             if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success(name + ' region set');
             load(c);
           } else {
-            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Region selection cancelled or failed');
+            if (ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Region selection cancelled or failed');
           }
         });
       },
       testRegion: function(name) {
-        api.resolveRegion(name).then(function(res) {
+        var el = document.getElementById('test-result-' + name);
+        if (el) { el.innerHTML = '<span style="color:var(--color-warning)">Testing...</span>'; el.style.display = 'block'; el.className = 'region-test-result testing'; }
+        api.resolveRegion(name)
+          .then(function(res) {
+            if (res && res.status === 'ok') {
+              var region = res.region || res;
+              var x = region && region.x !== undefined ? region.x : 0;
+              var y = region && region.y !== undefined ? region.y : 0;
+              var w = region && region.w !== undefined ? region.w : 0;
+              var h = region && region.h !== undefined ? region.h : 0;
+              if (el) { el.innerHTML = '<span style="color:var(--color-running)">&#x2713; Valid &#x2014; (' + Math.round(x) + ', ' + Math.round(y) + ', ' + Math.round(w) + ', ' + Math.round(h) + ')</span>'; el.className = 'region-test-result text-success'; }
+            } else {
+              if (el) { el.innerHTML = '<span style="color:var(--color-error)">&#x2717; ' + (res && res.message || 'Invalid region') + '</span>'; el.className = 'region-test-result text-error'; }
+            }
+          })
+          .catch(function(err) {
+            if (el) { el.innerHTML = '<span style="color:var(--color-error)">&#x2717; ' + (err.message || 'Test failed') + '</span>'; el.className = 'region-test-result text-error'; }
+          });
+      },
+      editRegion: function(name) {
+        var card = document.querySelector('[data-region="' + name + '"]');
+        if (!card) return;
+        var existing = card.querySelector('.region-edit-form');
+        if (existing) { existing.remove(); return; }
+        api.getRegions().then(function(regions) {
+          var region = null;
+          for (var i = 0; i < regions.length; i++) {
+            if (regions[i].name === name) { region = regions[i]; break; }
+          }
+          var form = document.createElement('div');
+          form.className = 'region-edit-form';
+          form.innerHTML = '<div class="coord-inputs">' +
+            '<label>X <input type="number" id="edit-x" value="' + Math.round(region && region.x !== undefined ? region.x : 0) + '" step="1" style="width:100%" /></label>' +
+            '<label>Y <input type="number" id="edit-y" value="' + Math.round(region && region.y !== undefined ? region.y : 0) + '" step="1" style="width:100%" /></label>' +
+            '<label>W <input type="number" id="edit-w" value="' + Math.round(region && region.w !== undefined ? region.w : 50) + '" step="1" style="width:100%" /></label>' +
+            '<label>H <input type="number" id="edit-h" value="' + Math.round(region && region.h !== undefined ? region.h : 50) + '" step="1" style="width:100%" /></label>' +
+            '</div>' +
+            '<div class="form-actions">' +
+            '<button class="btn btn-xs" onclick="if(window.__detectionPage)window.__detectionPage.saveEditRegion(\'' + name + '\')">Save</button>' +
+            '<button class="btn btn-xs" onclick="this.closest(\'.region-edit-form\').remove()">Cancel</button>' +
+            '</div>';
+          card.appendChild(form);
+        });
+      },
+      saveEditRegion: function(name) {
+        var x = parseInt((document.getElementById('edit-x') || {}).value) || 0;
+        var y = parseInt((document.getElementById('edit-y') || {}).value) || 0;
+        var w = parseInt((document.getElementById('edit-w') || {}).value) || 50;
+        var h = parseInt((document.getElementById('edit-h') || {}).value) || 50;
+        api.setRegion(name, { x: x, y: y, w: w, h: h }).then(function(res) {
           if (res && res.status === 'ok') {
-            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success(name + ': ' + (res.value || 'ok'));
+            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success(name + ' region updated');
+            load(c);
           } else {
-            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Test failed: ' + (res && res.message || 'unknown'));
+            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Failed to update region');
           }
         });
       },
@@ -158,21 +212,30 @@ export async function load(c) {
             for (var n = 0; n < res.regions.length; n++) {
               rMap[res.regions[n].name] = res.regions[n];
             }
-            var okCount = 0;
             for (var p = 0; p < REGIONS.length; p++) {
               var rn = REGIONS[p];
               var r = rMap[rn];
-              if (
-                r &&
-                Array.isArray(r.abs_area) &&
-                r.abs_area.length === 4
-              ) {
-                okCount++;
+              var el = document.getElementById('test-result-' + rn);
+              if (!el) continue;
+              var isValid = r && Array.isArray(r.abs_area) && r.abs_area.length === 4;
+              if (isValid) {
+                el.innerHTML = '<span style="color:var(--color-running)">&#x2713; Valid</span>';
+                el.className = 'region-test-result text-success';
+              } else {
+                el.innerHTML = '<span style="color:var(--color-error)">&#x2717; Invalid or missing</span>';
+                el.className = 'region-test-result text-error';
               }
+              el.style.display = 'block';
+            }
+            var okCount = 0;
+            for (var q = 0; q < REGIONS.length; q++) {
+              var rn2 = REGIONS[q];
+              var r2 = rMap[rn2];
+              if (r2 && Array.isArray(r2.abs_area) && r2.abs_area.length === 4) okCount++;
             }
             if (window.ShellApi && window.ShellApi.Toast) {
               if (okCount === REGIONS.length) window.ShellApi.Toast.success('All ' + REGIONS.length + ' regions valid');
-              else window.ShellApi.Toast.warn(okCount + '/' + REGIONS.length + ' regions valid');
+              else window.ShellApi.Toast.warning(okCount + '/' + REGIONS.length + ' regions valid');
             }
           } else {
             if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Failed to validate regions');
