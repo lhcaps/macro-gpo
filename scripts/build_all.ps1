@@ -10,7 +10,7 @@
     Step 4: Copy config.json, runs/, captures/, logs/ (if backed up by build_backend.ps1)
     Step 5: Run scripts/smoke_test_dist.py to verify the package
 
-    Requires: Python (PyInstaller), Node.js (npm), Rust (cargo)
+    Requires: Python (PyInstaller), Rust (cargo)
 .EXAMPLE
     scripts/build_all.ps1
 #>
@@ -44,7 +44,7 @@ Write-Host "[build] ZedsuBackend.exe built."
 
 # Step 3: Build frontend (Tauri)
 Write-Host ""
-Write-Host "[build] Step 3/5: Building Zedsu.exe (Tauri frontend — static HTML/CSS/JS)..." -ForegroundColor Yellow
+Write-Host "[build] Step 3/5: Building Zedsu.exe (Tauri frontend, static HTML/CSS/JS)..." -ForegroundColor Yellow
 & (Join-Path $ProjectRoot "scripts\build_frontend.ps1")
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[build] FAILED: scripts/build_frontend.ps1 returned exit code $LASTEXITCODE" -ForegroundColor Red

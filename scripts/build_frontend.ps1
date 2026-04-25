@@ -2,11 +2,11 @@
 .SYNOPSIS
     Build the Tauri frontend (Zedsu.exe).
 .DESCRIPTION
-    Step 1: Build the web frontend (src/ZedsuFrontend-dist/)
+    Step 1: Copy static web frontend assets to src/ZedsuFrontend-dist/
     Step 2: Run cargo build --release to produce Zedsu.exe
     Step 3: Copy Zedsu.exe to dist/Zedsu/
 .NOTES
-    Requires: Node.js (npm), Rust toolchain (cargo)
+    Requires: Rust toolchain (cargo). No Node.js needed (static HTML/CSS/JS).
 #>
 
 $ErrorActionPreference = "Stop"
@@ -15,11 +15,19 @@ $FrontendDir = Join-Path $ProjectRoot "src\ZedsuFrontend"
 $FrontendDistSrc = Join-Path $ProjectRoot "src\ZedsuFrontend-dist"
 $TauriDir = Join-Path $ProjectRoot "dist\Zedsu"
 
+# Kill any running Zedsu processes to release file locks
+Write-Host "[build] Killing any running Zedsu processes..."
+Get-Process | Where-Object { $_.Name -like '*Zedsu*' } | ForEach-Object {
+    Write-Host "[build] Killing PID: $($_.Id) $($_.Name)"
+    Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+}
+Start-Sleep 1
+
 # Step 0: Create output directory
 New-Item -ItemType Directory -Path $TauriDir -Force | Out-Null
 
 # Step 1: Build/copy static web assets
-# Frontend is plain HTML/CSS/JS — no npm/Vite needed.
+# Frontend is plain HTML/CSS/JS - no npm/Vite needed.
 # Tauri reads from src/ZedsuFrontend-dist/ (relative to src/ZedsuFrontend/).
 Write-Host "[build] Preparing static frontend assets..."
 
@@ -43,7 +51,7 @@ if (Test-Path $SrcSrc) {
     Copy-Item $SrcSrc (Join-Path $FrontendDistSrc "src") -Recurse -Force
     Write-Host "[build] Copied src/ directory"
 } else {
-    Write-Host "[build] WARNING: src/ directory not found in $FrontendDir — skipping"
+    Write-Host "[build] WARNING: src/ directory not found in $FrontendDir - skipping"
 }
 
 Write-Host "[build] Static frontend prepared: $FrontendDistSrc"

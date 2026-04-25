@@ -60,45 +60,88 @@ def check_executables(dist_path: Path) -> tuple[bool, bool]:
     return zedsu_ok, backend_ok
 
 
-def wait_for_port(host: str, port: int, timeout: float = 10.0) -> bool:
-    """Wait for a TCP port to become available."""
+def wait_for_port(host: str, port: int, timeout: float = 20.0) -> bool:
+    """Wait for a TCP port to accept connections (HTTP server ready)."""
     start = time.time()
     while time.time() - start < timeout:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(1.0)
+            sock.settimeout(2.0)
             result = sock.connect_ex((host, port))
             sock.close()
+            elapsed = time.time() - start
             if result == 0:
                 return True
-        except Exception:
+            # Only log every ~5s to avoid spam
+            if elapsed % 5 < 0.6:
+                print(f"[DEBUG] Port {port} not ready after {elapsed:.1f}s (connect result={result})")
+        except Exception as e:
             pass
         time.sleep(0.5)
     return False
 
 
+def _kill_existing_backend() -> None:
+    """Kill any running ZedsuBackend processes before starting the smoke test."""
+    try:
+        result = subprocess.run(
+            ["powershell", "-Command",
+             "Get-Process | Where-Object { $_.Name -like '*ZedsuBackend*' } | Stop-Process -Force -ErrorAction SilentlyContinue"],
+            capture_output=True, timeout=10,
+        )
+        time.sleep(1.0)  # Wait for port to be released
+    except Exception:
+        pass
+
+
 def check_backend_health(backend_exe: Path) -> tuple[bool, str]:
     """
-    Start ZedsuBackend.exe, wait for port 9761, check /health.
+    Start ZedsuBackend.exe, wait for /health to respond, check backend state.
     Returns (success, state_summary).
     """
+    _kill_existing_backend()
+
     print(f"[INFO] Starting {backend_exe}...")
     proc = None
     try:
-        # Start the backend process
+        # Start the backend process (no stdout/stderr redirect for windowed exe)
+        # runw.exe doesn't have a console; redirecting pipes causes issues.
+        # Startup errors go to logs/ directory instead.
         proc = subprocess.Popen(
             [str(backend_exe)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             cwd=str(backend_exe.parent),
         )
 
-        # Wait for port 9761 to open (max 10s)
-        if not wait_for_port("127.0.0.1", 9761, timeout=10.0):
-            print("[FAIL] Backend did not open port 9761 within 10 seconds")
+        # Poll /health directly instead of raw socket check.
+        # Backend takes 10-20s on cold start due to PyInstaller decompression.
+        start = time.time()
+        while time.time() - start < 25.0:
+            if proc.poll() is not None:
+                print(f"[FAIL] Backend process died with exit code {proc.returncode}")
+                return False, "process_died"
+            try:
+                req = urllib.request.Request("http://127.0.0.1:9761/health", method="GET")
+                with urllib.request.urlopen(req, timeout=2.0) as resp:
+                    elapsed = time.time() - start
+                    print(f"[PASS] Backend is healthy ({elapsed:.1f}s startup)")
+                    break
+            except urllib.error.URLError:
+                pass
+            except Exception:
+                pass
+            time.sleep(1.0)
+        else:
+            elapsed = time.time() - start
+            exit_code = proc.poll()
+            print(f"[FAIL] Backend /health did not respond after {elapsed:.1f}s (exit={exit_code})")
+            log_path = backend_exe.parent / "logs" / "backend.log"
+            if log_path.exists():
+                with open(log_path) as f:
+                    lines = f.readlines()
+                print(f"[DEBUG] Log has {len(lines)} lines. Last 3:")
+                for line in lines[-3:]:
+                    print(f"  {line.rstrip()}")
             return False, "startup_timeout"
-
-        print("[PASS] Backend is listening on port 9761")
 
         # Check /health endpoint
         try:

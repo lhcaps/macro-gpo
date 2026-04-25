@@ -53,6 +53,14 @@ $BuildDir = Join-Path $ProjectRoot "build_backend"
 $SpecFile = Join-Path $ProjectRoot "ZedsuBackend.spec"
 $BackendExe = Join-Path $DistDir "ZedsuBackend.exe"
 
+# Kill any running ZedsuBackend processes to release file locks
+Write-Host "[build] Killing any running ZedsuBackend processes..."
+Get-Process | Where-Object { $_.Name -like '*ZedsuBackend*' } | ForEach-Object {
+    Write-Host "[build] Killing PID: $($_.Id)"
+    Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+}
+Start-Sleep 2
+
 if (Test-Path $BuildDir) { Remove-Item $BuildDir -Recurse -Force }
 if (Test-Path $SpecFile) { Remove-Item $SpecFile -Force }
 
