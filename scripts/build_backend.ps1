@@ -133,7 +133,7 @@ exe = EXE(
 )
 "@
 
-Set-Content -Path $SpecFile -Value $specContent -Encoding utf8BOM
+Set-Content -Path $SpecFile -Value $specContent -Encoding UTF8
 Write-Host "[build] Wrote spec file: $SpecFile"
 
 # ---- Run PyInstaller ----
