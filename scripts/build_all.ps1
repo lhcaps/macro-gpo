@@ -44,7 +44,7 @@ Write-Host "[build] ZedsuBackend.exe built."
 
 # Step 3: Build frontend (Tauri)
 Write-Host ""
-Write-Host "[build] Step 3/5: Building Zedsu.exe (Tauri frontend)..." -ForegroundColor Yellow
+Write-Host "[build] Step 3/5: Building Zedsu.exe (Tauri frontend — static HTML/CSS/JS)..." -ForegroundColor Yellow
 & (Join-Path $ProjectRoot "scripts\build_frontend.ps1")
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[build] FAILED: scripts/build_frontend.ps1 returned exit code $LASTEXITCODE" -ForegroundColor Red
@@ -100,10 +100,12 @@ $SmokeTest = Join-Path $ProjectRoot "scripts\smoke_test_dist.py"
 if (Test-Path $SmokeTest) {
     python $SmokeTest
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "[build] WARNING: Smoke test failed. Check dist/Zedsu/ manually." -ForegroundColor Yellow
+        Write-Host "[build] FAILED: Smoke test failed." -ForegroundColor Red
+        exit $LASTEXITCODE
     }
 } else {
-    Write-Host "[build] WARNING: scripts/smoke_test_dist.py not found - skipping smoke test." -ForegroundColor Yellow
+    Write-Host "[build] ERROR: scripts/smoke_test_dist.py not found." -ForegroundColor Red
+    exit 1
 }
 
 # Summary

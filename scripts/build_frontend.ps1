@@ -18,25 +18,35 @@ $TauriDir = Join-Path $ProjectRoot "dist\Zedsu"
 # Step 0: Create output directory
 New-Item -ItemType Directory -Path $TauriDir -Force | Out-Null
 
-# Step 1: Build web frontend
-Write-Host "[build] Building frontend web assets..."
-Push-Location $FrontendDir
+# Step 1: Build/copy static web assets
+# Frontend is plain HTML/CSS/JS — no npm/Vite needed.
+# Tauri reads from src/ZedsuFrontend-dist/ (relative to src/ZedsuFrontend/).
+Write-Host "[build] Preparing static frontend assets..."
 
-if (-not (Test-Path "node_modules")) {
-    Write-Host "[build] Installing npm dependencies..."
-    npm install
+if (Test-Path $FrontendDistSrc) {
+    Remove-Item $FrontendDistSrc -Recurse -Force
 }
+New-Item -ItemType Directory -Path $FrontendDistSrc -Force | Out-Null
 
-Write-Host "[build] Running npm run build..."
-npm run build
+$SrcIndex = Join-Path $FrontendDir "index.html"
+$SrcSrc = Join-Path $FrontendDir "src"
 
-Pop-Location
-
-if (-not (Test-Path $FrontendDistSrc)) {
-    Write-Host "[build] ERROR: Frontend build did not produce ZedsuFrontend-dist/"
+if (-not (Test-Path $SrcIndex)) {
+    Write-Host "[build] ERROR: index.html not found in $FrontendDir"
     exit 1
 }
-Write-Host "[build] Frontend built: $FrontendDistSrc"
+
+Copy-Item $SrcIndex $FrontendDistSrc -Force
+Write-Host "[build] Copied index.html"
+
+if (Test-Path $SrcSrc) {
+    Copy-Item $SrcSrc (Join-Path $FrontendDistSrc "src") -Recurse -Force
+    Write-Host "[build] Copied src/ directory"
+} else {
+    Write-Host "[build] WARNING: src/ directory not found in $FrontendDir — skipping"
+}
+
+Write-Host "[build] Static frontend prepared: $FrontendDistSrc"
 
 # Step 2: Build Tauri binary
 Write-Host "[build] Building Tauri release binary..."
