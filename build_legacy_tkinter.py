@@ -1,3 +1,19 @@
+# =============================================================================
+# WARNING: Legacy Tkinter GUI Build Script
+# =============================================================================
+#
+# This script builds the legacy Phase 10 Tkinter GUI (app.py).
+# It is kept for reference only and is NOT used in the v3 production build.
+#
+# For v3 production build, run:
+#   scripts/build_all.ps1
+#
+# The v3 production build produces:
+#   dist/Zedsu/Zedsu.exe       — Tauri frontend (Rust)
+#   dist/Zedsu/ZedsuBackend.exe — Python backend (PyInstaller)
+#
+# =============================================================================
+
 from pathlib import Path
 import shutil
 import sys
