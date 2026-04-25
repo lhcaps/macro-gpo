@@ -1,0 +1,31 @@
+Phase 14.7: Frontend UX Stabilization and Bridger-style Redesign
+
+Root cause fixes:
+- Router lifecycle: navigateTo() now calls page cleanup before loading new page.
+  Fixes Overview listener leak bleeding into other tabs (Overview re-rendering
+  shellMain when user was on Discord/Logs/etc.)
+- Config normalization: normalizers.js prevents discord.events indexOf crash
+  when backend returns non-array. asArray() returns [] for undefined/null/object.
+- Logs spinner hang: renderLogs() called on every fetch including empty array.
+  Empty state shown immediately, no hanging spinner.
+- Toggle state: rollback on save failure, loading states, no page reload on save.
+
+Visual redesign (Bridger-inspired):
+- Window title "Zedsu" (was "Zedsu -- Operator Shell")
+- Softer surface palette: --bg #07090d, --accent #4fd8e8
+- Nav labels: Home, Combat, Detection, Positions, Discord, Models, Logs
+- CSS dot nav icons (no emoji)
+- Page enter animation: opacity + translateY 220ms ease-out
+- prefers-reduced-motion disables all animations
+- Settings About: "Phase 13" text removed
+
+New UI infrastructure (src/scripts/ui/):
+- normalizers.js: asArray/asBool/asNumber, normalizeDiscordConfig, etc.
+- dom.js: cached querySelector, updateText/updateClass (no unnecessary reflows)
+- page-lifecycle.js: registerPage/unregisterPage cleanup registry
+- components.js: StatusBadge, Card, Section, EmptyState, etc.
+
+All 15 acceptance criteria verified:
+- Smoke test ALL PASSED
+- Cargo build OK (frontend)
+- PyInstaller build OK (68.1MB backend, 11.1MB frontend)

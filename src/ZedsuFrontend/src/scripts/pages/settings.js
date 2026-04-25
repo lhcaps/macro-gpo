@@ -1,5 +1,9 @@
-// settings.js — System/Settings page (Runtime settings)
-// Uses simple string concatenation for HTML to avoid escaping issues.
+// settings.js — System/Settings page (Phase 14.7)
+// Key fixes vs old version:
+// 1. "Phase 13 — Operator Shell Redesign" text REMOVED from About section
+// 2. "Zedsu — Operator Shell" window title handled by tauri.conf.json (separate fix)
+// 3. All phase/GSD/planning terminology removed from UI
+// 4. Operational language only
 
 import * as api from '../shared/config-api.js';
 
@@ -12,7 +16,7 @@ function e(s) {
 
 function toggle(id, checked, onchange) {
   var c = checked ? 'checked ' : '';
-  return '<label class="toggle"><input type="checkbox" id="' + id + '" ' + c + 'onchange="' + onchange + '" /><span class="toggle-track"></span></label>';
+  return '<label class="toggle"><input type="checkbox" id="' + e(id) + '" ' + c + 'onchange="' + e(onchange) + '" /><span class="toggle-track"></span></label>';
 }
 
 export async function load(c) {
@@ -50,13 +54,12 @@ export async function load(c) {
     html += '<div class="setting-row"><span class="setting-label">Toggle HUD</span><span class="key-badge">F2</span></div>';
     html += '<div class="setting-row"><span class="setting-label">Toggle Start/Stop</span><span class="key-badge">F3</span></div>';
     html += '<div class="setting-row"><span class="setting-label">Open Shell</span><span class="key-badge">F4</span></div>';
-    html += '<p class="text-xs text-muted" style="margin-top:var(--space-3)">Custom key bindings for game actions are configured in the bot core (not exposed via UI).</p>';
+    html += '<p class="text-xs text-muted" style="margin-top:var(--space-3)">Custom key bindings for game actions are configured in the bot core.</p>';
     html += '</div></div>';
 
-    // About
+    // About — NO phase info
     html += '<div class="settings-section"><div class="section-header"><h2 class="section-title">About</h2></div><div class="section-card">';
     html += '<div class="metric-row"><span class="metric-label">Version</span><span class="metric-value font-mono">' + version + '</span></div>';
-    html += '<div class="metric-row"><span class="metric-label">Phase</span><span class="metric-value">Phase 13 \u2014 Operator Shell Redesign</span></div>';
     html += '<div class="metric-row"><span class="metric-label">Backend</span><span class="metric-value font-mono">localhost:9761</span></div>';
     html += '</div></div>';
 

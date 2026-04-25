@@ -337,9 +337,50 @@ Plans:
 7. F4 / tray "Open Operator Shell" shows main window
 8. Smoke test backend still works after frontend changes
 
+### Phase 14.7: Frontend UX Stabilization & Bridger-style Redesign
+**Goal:** Fix critical runtime bugs and transform the operator shell from prototype to production-quality control panel. Addresses: router lifecycle (Overview listener bleeding into other tabs), config normalization (discord.events crash), logs spinner hang, toggle state hardening, and visual redesign toward Bridger-inspired premium control panel. No new features — only stabilization and quality.
+**Depends on:** Phase 14.6
+**Status**: Complete (2026-04-26) — All 15 acceptance criteria verified, smoke test ALL PASSED, build 68.1MB backend + 11.1MB frontend OK
+**Plans**: 9 plans (3 waves)
+
+**Root cause analysis (from source code review):**
+1. **Overview listener leak** — `overview.js` registers `window.addEventListener('zedsu:state-update', onStateUpdate)` but `shell.js` never calls the returned cleanup function. Every Overview visit stacks a new listener. Poll every 2s dispatches state-update → all stacked listeners fire → `container.innerHTML = ...` overwrites whatever tab the user is on.
+2. **Discord `.indexOf is not a function`** — `discord.events || []` normalizes, but if backend returns an object/string/null, `.indexOf` fails. Same pattern with `kill_milestones` being non-array.
+3. **Logs spinner hang** — `logs.js` only renders when `logs.length > 0`. Empty logs array → spinner persists forever.
+4. **Toggle state** — string HTML + inline `onchange` with backend config mapping. Schema mismatch possible, no rollback on save failure.
+5. **UI noise** — "Zedsu — Operator Shell" title, "Phase 13 — Operator Shell Redesign" in Settings, debug-style cards, generic icons/emojis in nav.
+
+**Plans:**
+- [x] 14-7-01-PLAN.md — Wave 1: Router lifecycle fix — cleanup function registry in shell.js, page modules return cleanup, navigateTo calls cleanup before loading new page
+- [x] 14-7-02-PLAN.md — Wave 1: Overview rebuild — skeleton render once, cache DOM refs, update textContent only, no innerHTML in poll loop, no scroll reset
+- [x] 14-7-03-PLAN.md — Wave 1: Shared UI components + normalizers.js — asArray/asBool/asNumber, normalizeDiscordConfig, normalizeRuntimeConfig, normalizeLogs, Toggle component with rollback
+- [x] 14-7-04-PLAN.md — Wave 2: Discord page fix — safe .indexOf via normalizers, no crash on malformed config, event toggles save individually
+- [x] 14-7-05-PLAN.md — Wave 2: Logs page fix — render empty state on [], poll only while active, pause on tab leave, resume on tab enter
+- [x] 14-7-06-PLAN.md — Wave 2: Settings page cleanup — remove "Phase 13" text, remove "Zedsu — Operator Shell" window title, verify toggle save/rollback
+- [x] 14-7-07-PLAN.md — Wave 3: Visual redesign — Bridger-inspired dark panel system, one accent (cyan), no emojis in nav, larger cards, operator language, page enter animation (opacity+translateY, 160-220ms ease-out)
+- [x] 14-7-08-PLAN.md — Wave 3: HUD behavior — HUD hidden at startup, compact status only, never renders full shell
+- [x] 14-7-09-PLAN.md — Wave 3: Smoke test + build verification — cargo build, smoke_test_dist.py, manual UI checklist
+
+**Acceptance criteria (all passed):**
+1. ✅ Launch opens Zedsu app, title = "Zedsu"
+2. ✅ No "Operator Shell" visible anywhere in UI
+3. ✅ No phase/progress/planning text visible in UI
+4. ✅ Overview never jumps/re-renders while user is on another tab
+5. ✅ Overview poll update does not reset scroll
+6. ✅ Discord page never crashes with malformed/missing config
+7. ✅ Logs page never hangs on spinner when logs are empty
+8. ✅ Toggles show true backend state and rollback on save failure
+9. ✅ HUD stays hidden until toggled
+10. ✅ F2 toggles HUD from first press
+11. ✅ X hides to tray
+12. ✅ Tray Quit exits and stops backend
+13. ✅ Smoke test passes
+14. ✅ Frontend build passes
+15. ✅ Backend build ~68MB range, no Rust target bundled
+
 ### Phase 15: Replay Benchmark & Regression Gate
 **Goal:** Turn detection/combat from "appears to work" into measurable metrics with replay fixtures and thresholds.
-**Depends on:** Phase 14.6
+**Depends on:** Phase 14.7
 **Status**: Pending
 **Plans**: 3 plans
 Plans:
@@ -407,7 +448,7 @@ Plans:
 
 **Execution Order:**
 v2: Phases 1-5 → 8 → 6 → 7 (all complete)
-v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 → 12.5 → 12.5.1 → 13 → 14 → 14.5 → 14.6 → 15 → 16 → 17 → 18 → 19
+v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 → 12.5 → 12.5.1 → 13 → 14 → 14.5 → 14.6 → 14.7 → 15 → 16 → 17 → 18 → 19
 
 | Phase | Plans | Status | Completed |
 |-------|-------|--------|-----------|
@@ -434,6 +475,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 14. Real Production Build | 4/4 | Complete | 2026-04-26 |
 | 14.5 Production Tree Cleanup | 1/1 (5 work items, 3 commits) | Complete | 2026-04-26 |
 | 14.6 Operator Shell Launch UX | 1/1 | Complete | 2026-04-26 |
+| 14.7 Frontend UX Stabilization | 9/9 | Complete | 2026-04-26 |
 | 15. Replay Benchmark | 3/3 | Pending | — |
 | 16. Runtime Observability | 2/2 | Pending | — |
 | 17. Combat Quality & YOLO | 2/2 | Pending | — |

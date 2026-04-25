@@ -45,6 +45,14 @@
   letter-spacing: 0.5px;
 }
 
+.brand-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border);
+  margin: 0 var(--space-2);
+  flex-shrink: 0;
+}
+
 .shell-topbar-status {
   display: flex;
   align-items: center;
@@ -131,6 +139,16 @@
   text-align: center;
 }
 
+.nav-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.4;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
 .nav-label {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -150,6 +168,8 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--space-6);
+  max-width: var(--content-max-width);
+  width: 100%;
 }
 
 /*** Page Layout ***/
@@ -903,11 +923,4 @@
   background: rgba(103, 232, 249, 0.08);
   color: var(--color-accent);
   border-left-color: var(--color-accent);
-}
-
-.nav-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-  width: 16px;
-  text-align: center;
 }
