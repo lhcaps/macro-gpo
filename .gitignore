@@ -33,3 +33,6 @@ src/ZedsuFrontend/target/
 
 # GSD tooling
 .codex/
+
+# Commit message template (tool artifact)
+.commit_msg.txt

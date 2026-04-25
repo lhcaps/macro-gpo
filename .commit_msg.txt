@@ -1,5 +1,0 @@
-fix(phase-13): patch 3 blockers in shell.js and hud.js
-
-- shell.js: sendCommand() now sends {action, payload} per backend contract
-- shell.js: restart button now calls restart_backend (not restart)
-- hud.js: latency color threshold order fixed (>200 before >100)

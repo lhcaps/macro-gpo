@@ -152,28 +152,28 @@ export async function load(c) {
         });
       },
       validateAllRegions: function() {
-        var count = REGIONS.length;
-        var results = [];
-        var done = 0;
-        for (var k = 0; k < REGIONS.length; k++) {
-          (function(name) {
-            api.resolveRegion(name).then(function(res) {
-              results.push({ name: name, ok: res && res.status === 'ok', value: res && res.value });
-              done++;
-              if (done === count) {
-                var okCount = 0;
-                for (var m = 0; m < results.length; m++) { if (results[m].ok) okCount++; }
-                if (window.ShellApi && window.ShellApi.Toast) {
-                  if (okCount === count) window.ShellApi.Toast.success('All ' + count + ' regions valid');
-                  else window.ShellApi.Toast.warn(okCount + '/' + count + ' regions valid');
-                }
-              }
-            }).catch(function() {
-              results.push({ name: name, ok: false });
-              done++;
-            });
-          })(REGIONS[k]);
-        }
+        api.resolveAllRegions().then(function(res) {
+          if (res && res.status === 'ok' && res.regions) {
+            var rMap = {};
+            for (var n = 0; n < res.regions.length; n++) {
+              rMap[res.regions[n].name] = res.regions[n];
+            }
+            var okCount = 0;
+            for (var p = 0; p < REGIONS.length; p++) {
+              var rn = REGIONS[p];
+              var r = rMap[rn];
+              if (r && (r.detected !== null || r.confidence !== null)) okCount++;
+            }
+            if (window.ShellApi && window.ShellApi.Toast) {
+              if (okCount === REGIONS.length) window.ShellApi.Toast.success('All ' + REGIONS.length + ' regions valid');
+              else window.ShellApi.Toast.warn(okCount + '/' + REGIONS.length + ' regions valid');
+            }
+          } else {
+            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Failed to validate regions');
+          }
+        }).catch(function() {
+          if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Failed to validate regions');
+        });
       },
       resetRegion: function(name) {
         if (!confirm('Reset region "' + name + '"?')) return;
