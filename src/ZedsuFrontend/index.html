@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="/src/styles/tokens.css" />
   <link rel="stylesheet" href="/src/styles/components.css" />
   <link rel="stylesheet" href="/src/styles/app.css" />
+  <link rel="stylesheet" href="/src/styles/pages/overview.css" />
+  <link rel="stylesheet" href="/src/styles/pages/settings.css" />
 </head>
 <body data-mode="shell">
 
@@ -55,7 +57,9 @@
         <span class="brand-text">Zedsu</span>
         <span id="topbar-status" class="status-pill status-idle">IDLE</span>
         <span id="topbar-backend" class="backend-indicator backend-ok">Backend OK</span>
-        <span id="topbar-match" class="text-sm text-muted"></span>
+        <span id="topbar-match" class="text-sm text-muted" style="display:none;"></span>
+        <span id="topbar-combat" class="text-sm text-cyan" style="display:none;"></span>
+        <span id="topbar-kills" class="text-sm text-cyan" style="display:none;"></span>
       </div>
       <div class="shell-topbar-actions">
         <button class="btn btn-sm btn-secondary" id="btn-hud">HUD</button>

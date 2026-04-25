@@ -87,7 +87,14 @@ html, body {
 }
 .btn-ghost:hover:not(:disabled) { background: var(--color-elevated); color: var(--color-text-primary); }
 
+.btn-danger-text {
+  background: transparent;
+  color: var(--color-error);
+}
+.btn-danger-text:hover:not(:disabled) { background: rgba(239,68,68,0.1); }
+
 .btn-sm { padding: var(--space-1) var(--space-3); font-size: 12px; }
+.btn-xs { padding: 2px var(--space-2); font-size: 11px; }
 .btn-lg { padding: var(--space-3) var(--space-6); font-size: 14px; }
 
 /*** Cards ***/
@@ -287,6 +294,7 @@ html, body {
   background: currentColor;
 }
 .backend-indicator.backend-ok      { color: var(--color-running); }
+.backend-indicator.backend-starting { color: var(--color-warning); }
 .backend-indicator.backend-warning { color: var(--color-warning); }
 .backend-indicator.backend-offline { color: var(--color-error); }
 

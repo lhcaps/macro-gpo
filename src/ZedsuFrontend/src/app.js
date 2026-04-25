@@ -39,5 +39,5 @@ if (mode === 'hud') {
 // Global error handler
 window.addEventListener('error', (e) => {
   console.error('[ZEDSU Shell Error]', e.error);
-  window.ToastApi?.error('Shell error: ' + (e.message || 'Unknown'));
+  window.ShellApi?.Toast?.error('Shell error: ' + (e.message || 'Unknown'));
 });

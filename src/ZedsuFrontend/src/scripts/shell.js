@@ -1,29 +1,218 @@
-// shell.js — Operator Shell initialization
-// Minimal version for now — full shell built in plan 13-03/13-04.
+// shell.js — Full Operator Shell implementation
+// Includes: TopCommandBar, SidebarNav, command proxy, page routing, Toast, state normalization
 
+const API_BASE = 'http://localhost:9761';
+
+// Dynamic import for overview page
+async function loadOverview() {
+  const m = await import('./overview.js');
+  m.loadOverviewPage(shellMain);
+}
+
+// ============================================================
+// DOM References
+// ============================================================
 const topbarStatus = document.getElementById('topbar-status');
 const topbarBackend = document.getElementById('topbar-backend');
 const topbarMatch = document.getElementById('topbar-match');
+const topbarCombat = document.getElementById('topbar-combat');
+const topbarKills = document.getElementById('topbar-kills');
 const btnStart = document.getElementById('btn-start');
 const btnStop = document.getElementById('btn-stop');
 const btnEStop = document.getElementById('btn-estop');
 const btnHud = document.getElementById('btn-hud');
 const btnLogs = document.getElementById('btn-logs');
 const btnRestart = document.getElementById('btn-restart');
+const navItems = document.querySelectorAll('.nav-item');
+const shellMain = document.getElementById('shell-main');
 
-let currentState = { status: 'idle' };
+let currentPage = 'overview';
+let pollTimer = null;
+let cachedState = null;
+
+// ============================================================
+// Toast Notifications
+// ============================================================
+const Toast = {
+  container: null,
+
+  init() {
+    if (!this.container) {
+      this.container = document.getElementById('toast-container');
+    }
+  },
+
+  _escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  },
+
+  show(message, type = 'info', duration = 3000) {
+    this.init();
+    if (!this.container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<span class="toast-message">${this._escapeHtml(message)}</span>`;
+    toast.style.animation = 'toast-enter 200ms ease-out forwards';
+    this.container.appendChild(toast);
+    setTimeout(() => {
+      toast.style.animation = 'toast-exit 200ms ease-in forwards';
+      setTimeout(() => toast.remove(), 200);
+    }, duration);
+  },
+
+  success(msg) { this.show(msg, 'success'); },
+  error(msg) { this.show(msg, 'error', 5000); },
+  info(msg) { this.show(msg, 'info'); },
+  warning(msg) { this.show(msg, 'warning', 4000); },
+};
+
+// Expose Toast globally
+window.ShellApi = window.ShellApi || {};
+window.ShellApi.Toast = Toast;
+
+// ============================================================
+// Command Proxy — { action, payload } contract
+// ============================================================
+async function sendCommand(action, payload = null) {
+  try {
+    const body = payload !== null
+      ? { action, payload }
+      : { action };
+    const resp = await fetch(`${API_BASE}/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.status === 'error') {
+      Toast.error(data.message || data.error || `Command '${action}' failed`);
+      return { success: false, error: data.message || data.error };
+    }
+    Toast.success(`${action} executed`);
+    return data;
+  } catch (err) {
+    Toast.error(`Cannot reach backend: ${err.message}`);
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================================
+// State Normalization — /state → UI contract
+// ============================================================
+function normalizeBackendState(data) {
+  if (!data) return null;
+
+  const hud = data.hud || {};
+  const combat = data.combat || {};
+  const discord = data.discord_events || {};
+  const yolo = data.yolo_model || {};
+  const setup = data.setup_issues || {};
+
+  return {
+    bot_status: hud.status || data.bot_status || 'idle',
+    backend_health: data.backend_health || 'unknown',
+    combat_state: combat.state || combat.combat_state || null,
+    kills: combat.kills || 0,
+    match_num: combat.match_num || hud.match_num || null,
+    elapsed: hud.elapsed || 0,
+    last_event: combat.last_event || null,
+    intent: combat.intent || null,
+    crowd_risk: combat.crowd_risk ?? null,
+    death_reason: combat.death_reason || null,
+    target_visible: combat.target_visible ?? null,
+    latency: hud.latency || 0,
+    has_webhook: discord.has_webhook || false,
+    webhook_events: discord.events || [],
+    yolo_available: yolo.available || false,
+    yolo_model: yolo.model_name || yolo.active_model || null,
+    yolo_quality: yolo.quality_score ?? null,
+    setup_issues: setup.issues || [],
+    uptime: data.uptime || 0,
+    _raw: data,
+  };
+}
+
+// ============================================================
+// TopCommandBar Updates
+// ============================================================
+function updateTopbar(state) {
+  if (!state) return;
+
+  // Status pill
+  if (topbarStatus) {
+    topbarStatus.textContent = state.bot_status.toUpperCase();
+    topbarStatus.className = `status-pill status-${state.bot_status}`;
+  }
+
+  // Backend health
+  if (topbarBackend) {
+    if (state.backend_health === 'ok') {
+      topbarBackend.textContent = 'Backend OK';
+      topbarBackend.className = 'backend-indicator backend-ok';
+    } else if (state.backend_health === 'starting') {
+      topbarBackend.textContent = 'Backend Starting';
+      topbarBackend.className = 'backend-indicator backend-starting';
+    } else {
+      topbarBackend.textContent = 'Backend OFFLINE';
+      topbarBackend.className = 'backend-indicator backend-offline';
+    }
+  }
+
+  // Match info
+  if (topbarMatch) {
+    if (state.match_num) {
+      topbarMatch.textContent = `Match #${state.match_num}`;
+      topbarMatch.style.display = '';
+    } else {
+      topbarMatch.textContent = '';
+      topbarMatch.style.display = 'none';
+    }
+  }
+
+  // Combat state
+  if (topbarCombat) {
+    if (state.combat_state) {
+      topbarCombat.textContent = state.combat_state;
+      topbarCombat.style.display = '';
+    } else {
+      topbarCombat.textContent = '';
+      topbarCombat.style.display = 'none';
+    }
+  }
+
+  // Kills
+  if (topbarKills) {
+    if (state.kills > 0) {
+      topbarKills.textContent = `${state.kills} kills`;
+      topbarKills.style.display = '';
+    } else {
+      topbarKills.textContent = '';
+      topbarKills.style.display = 'none';
+    }
+  }
+
+  // Button states
+  const isRunning = state.bot_status === 'running';
+  if (btnStart) btnStart.disabled = isRunning;
+  if (btnStop) btnStop.disabled = !isRunning;
+}
 
 // ============================================================
 // Backend Polling
 // ============================================================
-
-async function pollShellState() {
+async function pollBackend() {
   try {
-    const resp = await fetch('http://localhost:9761/state');
+    const resp = await fetch(`${API_BASE}/state`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
-    updateShellState(data);
-  } catch (err) {
+    cachedState = normalizeBackendState(data);
+    updateTopbar(cachedState);
+
+    // Dispatch event for active page to update
+    window.dispatchEvent(new CustomEvent('zedsu:state-update', { detail: cachedState }));
+  } catch (_) {
     if (topbarBackend) {
       topbarBackend.textContent = 'Backend OFFLINE';
       topbarBackend.className = 'backend-indicator backend-offline';
@@ -31,211 +220,58 @@ async function pollShellState() {
   }
 }
 
-function updateShellState(data) {
-  const hud = data.hud || {};
-  const combat = data.combat || {};
-  const botStatus = hud.status || data.bot_status || 'idle';
+// ============================================================
+// Page Routing
+// ============================================================
+const pageModules = {
+  overview: loadOverview,
+  'combat-ai': () => import('./pages/combat-ai.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'Combat AI', '13-04')),
+  detection: () => import('./pages/detection.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'Detection', '13-04')),
+  positions: () => import('./pages/positions.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'Positions', '13-05')),
+  discord: () => import('./pages/discord.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'Discord', '13-04')),
+  yolo: () => import('./pages/yolo.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'YOLO', '13-04')),
+  logs: () => import('./pages/logs.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'Logs', '13-04')),
+  settings: () => import('./pages/settings.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'Settings', '13-04')),
+};
 
-  // Status pill
-  if (topbarStatus) {
-    topbarStatus.textContent = botStatus.toUpperCase();
-    topbarStatus.className = `status-pill status-${botStatus}`;
-  }
-
-  // Backend health
-  if (topbarBackend) {
-    topbarBackend.textContent = 'Backend OK';
-    topbarBackend.className = 'backend-indicator backend-ok';
-  }
-
-  // Match info
-  const matchNum = combat.match_num || hud.match_num;
-  if (topbarMatch && matchNum) {
-    topbarMatch.textContent = `Match #${matchNum}`;
-  }
-
-  currentState = { ...currentState, ...data };
+function showPagePlaceholder(container, title, planRef) {
+  if (!container) return;
+  container.innerHTML = `
+    <div class="page-placeholder">
+      <div class="page-placeholder-icon">&#x25C8;</div>
+      <h2>${title}</h2>
+      <p>Full ${title} page is being built in plan ${planRef}.</p>
+    </div>
+  `;
 }
 
-// ============================================================
-// Command Proxy
-// ============================================================
+async function navigateTo(page) {
+  if (currentPage === page) return;
+  currentPage = page;
 
-async function sendCommand(action, payload = null) {
+  navItems.forEach(item => {
+    item.classList.toggle('active', item.getAttribute('data-page') === page);
+  });
+
+  if (!shellMain) return;
+  shellMain.innerHTML = '<div class="page-loading"><div class="loading-spinner"></div></div>';
+
   try {
-    const resp = await fetch('http://localhost:9761/command', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, payload }),
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok || data.status === 'error') {
-      window.ToastApi?.error(data.message || data.error || `HTTP ${resp.status}`);
+    const loader = pageModules[page];
+    if (loader) {
+      await loader();
     } else {
-      window.ToastApi?.success(`${action} executed`);
+      showPagePlaceholder(shellMain, page, '13-04');
     }
-    return data;
   } catch (err) {
-    window.ToastApi?.error(`Failed to send command: ${err.message}`);
-    return { status: 'error', message: err.message };
+    console.error(`[Shell] Failed to load page '${page}':`, err);
+    showPagePlaceholder(shellMain, page, '13-04');
   }
-}
-
-// ============================================================
-// Button Handlers
-// ============================================================
-
-btnStart?.addEventListener('click', () => sendCommand('start'));
-btnStop?.addEventListener('click', () => sendCommand('stop'));
-btnEStop?.addEventListener('click', () => {
-  showConfirm('Emergency Stop', 'This will halt all bot actions immediately. Continue?', () => {
-    sendCommand('emergency_stop');
-  });
-});
-btnRestart?.addEventListener('click', () => {
-  window.ToastApi?.info('Restarting backend...');
-  sendCommand('restart_backend');
-});
-btnHud?.addEventListener('click', () => window.HudApi?.toggle());
-
-// ============================================================
-// Navigation
-// ============================================================
-
-document.querySelectorAll('.nav-item').forEach(item => {
-  item.addEventListener('click', () => {
-    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    item.classList.add('active');
-    const page = item.getAttribute('data-page');
-    loadShellPage(page);
-  });
-});
-
-// ============================================================
-// Page Loader (placeholders — full implementation in 13-03/13-04)
-// ============================================================
-
-function loadShellPage(page) {
-  const main = document.getElementById('shell-main');
-  if (!main) return;
-
-  const pageContent = {
-    overview: `
-      <div class="page">
-        <h1 class="page-title">Overview</h1>
-        <div class="cards-grid">
-          <div class="card">
-            <div class="card-title">Runtime</div>
-            <div class="metric-inline" style="margin-bottom:var(--space-4)">
-              <span id="overview-status-dot" class="status-dot status-idle"></span>
-              <span class="metric-label" id="overview-status-label">IDLE</span>
-            </div>
-            <div style="color:var(--color-text-muted);font-size:12px">
-              <div style="margin-bottom:4px"><span class="backend-indicator backend-ok" id="overview-backend">Backend OK</span></div>
-              <div id="overview-uptime">Uptime: --</div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Current Match</div>
-            <div class="metric-value" id="overview-match">—</div>
-            <div class="metric-label">Match #</div>
-            <div style="margin-top:var(--space-3);display:flex;gap:var(--space-4)">
-              <div>
-                <div class="metric-value" id="overview-kills">0</div>
-                <div class="metric-label">Kills</div>
-              </div>
-              <div>
-                <div class="metric-value" id="overview-state">—</div>
-                <div class="metric-label">State</div>
-              </div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Combat AI</div>
-            <div style="color:var(--color-text-muted);font-size:12px;margin-bottom:var(--space-3)">
-              Intent <span id="ai-intent" class="text-cyan" style="float:right">—</span>
-            </div>
-            <div style="color:var(--color-text-muted);font-size:12px;margin-bottom:var(--space-3)">
-              Crowd Risk <span id="ai-crowd" style="float:right">—</span>
-            </div>
-            <div style="color:var(--color-text-muted);font-size:12px">
-              Target <span id="ai-target" style="float:right">—</span>
-            </div>
-          </div>
-        </div>
-      </div>`,
-    'combat-ai': `
-      <div class="page">
-        <h1 class="page-title">Combat AI</h1>
-        <p class="text-secondary" style="margin-bottom:var(--space-6)">Full page coming in Phase 13-04.</p>
-      </div>`,
-    detection: `
-      <div class="page">
-        <h1 class="page-title">Detection</h1>
-        <p class="text-secondary" style="margin-bottom:var(--space-6)">Full page coming in Phase 13-04.</p>
-      </div>`,
-    positions: `
-      <div class="page">
-        <h1 class="page-title">Positions</h1>
-        <p class="text-secondary" style="margin-bottom:var(--space-6)">Full page coming in Phase 13-05.</p>
-      </div>`,
-    discord: `
-      <div class="page">
-        <h1 class="page-title">Discord</h1>
-        <p class="text-secondary" style="margin-bottom:var(--space-6)">Full page coming in Phase 13-04.</p>
-      </div>`,
-    yolo: `
-      <div class="page">
-        <h1 class="page-title">YOLO</h1>
-        <p class="text-secondary" style="margin-bottom:var(--space-6)">Full page coming in Phase 13-04.</p>
-      </div>`,
-    logs: `
-      <div class="page">
-        <h1 class="page-title">Logs</h1>
-        <p class="text-secondary" style="margin-bottom:var(--space-6)">Full page coming in Phase 13-06.</p>
-      </div>`,
-    settings: `
-      <div class="page">
-        <h1 class="page-title">Settings</h1>
-        <p class="text-secondary" style="margin-bottom:var(--space-6)">Full page coming in Phase 13-04.</p>
-      </div>`,
-  };
-
-  main.innerHTML = pageContent[page] || pageContent.overview;
-  updateOverviewState();
-}
-
-// Update overview cards from current state
-function updateOverviewState() {
-  const hud = currentState.hud || {};
-  const combat = currentState.combat || {};
-
-  const statusDot = document.getElementById('overview-status-dot');
-  const statusLabel = document.getElementById('overview-status-label');
-  const matchEl = document.getElementById('overview-match');
-  const killsEl = document.getElementById('overview-kills');
-  const stateEl = document.getElementById('overview-state');
-  const intentEl = document.getElementById('ai-intent');
-  const crowdEl = document.getElementById('ai-crowd');
-  const targetEl = document.getElementById('ai-target');
-
-  const botStatus = hud.status || currentState.bot_status || 'idle';
-  const matchNum = combat.match_num || hud.match_num;
-
-  if (statusDot) statusDot.className = `status-dot status-${botStatus}`;
-  if (statusLabel) statusLabel.textContent = botStatus.toUpperCase();
-  if (matchEl) matchEl.textContent = matchNum || '—';
-  if (killsEl) killsEl.textContent = combat.kills || 0;
-  if (stateEl) stateEl.textContent = combat.state || '—';
-  if (intentEl) intentEl.textContent = combat.intent || '—';
-  if (crowdEl) crowdEl.textContent = combat.crowd_risk !== null && combat.crowd_risk !== undefined ? combat.crowd_risk.toFixed(2) : '—';
-  if (targetEl) targetEl.textContent = '—'; // Will wire in 13-05
 }
 
 // ============================================================
 // Confirm Dialog
 // ============================================================
-
 function showConfirm(title, message, onConfirm) {
   const overlay = document.getElementById('confirm-overlay');
   const titleEl = document.getElementById('confirm-title');
@@ -263,20 +299,65 @@ function showConfirm(title, message, onConfirm) {
 }
 
 // ============================================================
-// Toast API stub (full implementation in 13-06)
+// Initialization
 // ============================================================
-
-window.ToastApi = window.ToastApi || {
-  success: (msg) => console.log('[Toast OK]', msg),
-  error: (msg) => console.error('[Toast Error]', msg),
-  info: (msg) => console.info('[Toast]', msg),
-};
-
-// ============================================================
-// Shell Initialization
-// ============================================================
-
 export function initShell() {
-  loadShellPage('overview');
-  setInterval(pollShellState, 2000);
+  // Wire buttons
+  btnStart?.addEventListener('click', () => sendCommand('start'));
+  btnStop?.addEventListener('click', () => sendCommand('stop'));
+  btnEStop?.addEventListener('click', () => {
+    showConfirm('Emergency Stop', 'This will halt all bot actions immediately. Continue?', () => {
+      Toast.warning('Emergency stop triggered');
+      sendCommand('emergency_stop');
+    });
+  });
+  btnHud?.addEventListener('click', () => window.HudApi?.toggle());
+  btnRestart?.addEventListener('click', async () => {
+    Toast.info('Restarting backend...');
+    await sendCommand('restart_backend');
+  });
+
+  // Nav sidebar
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const page = item.getAttribute('data-page');
+      navigateTo(page);
+    });
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'F1') {
+      e.preventDefault();
+      showConfirm('Emergency Stop', 'This will halt all bot actions immediately. Continue?', () => {
+        Toast.warning('Emergency stop');
+        sendCommand('emergency_stop');
+      });
+    }
+    if (e.key === 'F2') {
+      window.HudApi?.toggle();
+    }
+    if (e.key === 'F3') {
+      e.preventDefault();
+      const isRunning = topbarStatus?.textContent === 'RUNNING';
+      sendCommand(isRunning ? 'stop' : 'start');
+    }
+  });
+
+  // Start polling
+  pollBackend();
+  pollTimer = setInterval(pollBackend, 2000);
+
+  // Load default page
+  navigateTo('overview');
 }
+
+// Expose to window
+window.ShellApi = window.ShellApi || {};
+Object.assign(window.ShellApi, {
+  sendCommand,
+  getState: () => cachedState,
+  navigateTo,
+  Toast,
+  showConfirm,
+});

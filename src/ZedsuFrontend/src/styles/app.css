@@ -570,3 +570,97 @@
   background: var(--color-elevated);
   color: var(--color-text-primary);
 }
+
+/*** ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ ***/
+
+.toast-container {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  font-size: 13px;
+  min-width: 240px;
+  max-width: 400px;
+  pointer-events: auto;
+}
+
+.toast-toast { }
+.toast-success { border-color: rgba(34,197,94,0.4); }
+.toast-success .toast-message { color: var(--color-running); }
+.toast-error { border-color: rgba(239,68,68,0.4); }
+.toast-error .toast-message { color: var(--color-error); }
+.toast-warning { border-color: rgba(245,158,11,0.4); }
+.toast-warning .toast-message { color: var(--color-warning); }
+.toast-info .toast-message { color: var(--color-accent); }
+
+.toast-message {
+  flex: 1;
+  color: var(--color-text-primary);
+}
+
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toast-exit {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(20px); }
+}
+
+/*** ============================================================
+   NAV SIDEBAR FIXES
+   ============================================================ ***/
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  border-left: 2px solid transparent;
+}
+
+.nav-item:hover {
+  background: var(--color-elevated);
+  color: var(--color-text-primary);
+}
+
+.nav-item.active {
+  background: rgba(103, 232, 249, 0.08);
+  color: var(--color-accent);
+  border-left-color: var(--color-accent);
+}
+
+.nav-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
