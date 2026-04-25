@@ -192,18 +192,33 @@ export async function load(c) {
         if (!file) return;
         file.text().then(function(text) {
           try {
-            var positions = JSON.parse(text);
-            var count = 0;
-            for (var k = 0; k < positions.length; k++) {
-              if (positions[k].name && (positions[k].x !== undefined || positions[k].y !== undefined)) {
-                api.setPosition(positions[k].name, positions[k]);
-                count++;
+            var parsed = JSON.parse(text);
+            if (!Array.isArray(parsed)) throw new Error('Expected an array');
+            var validPositions = [];
+            for (var k = 0; k < parsed.length; k++) {
+              if (parsed[k] && parsed[k].name && typeof parsed[k].name === 'string' &&
+                  (parsed[k].x !== undefined || parsed[k].y !== undefined)) {
+                if (typeof parsed[k].x !== 'number' || typeof parsed[k].y !== 'number') {
+                  throw new Error('Position "' + parsed[k].name + '" has non-numeric coordinates');
+                }
+                validPositions.push(parsed[k]);
               }
             }
-            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success('Imported ' + count + ' positions');
-            load(c);
+            if (validPositions.length === 0) {
+              if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.warning('No valid positions found in file');
+              return;
+            }
+            Promise.all(validPositions.map(function(p) {
+              return api.setPosition(p.name, p);
+            })).then(function(results) {
+              var saved = results.filter(function(r) { return r && r.status === 'ok'; }).length;
+              if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success('Imported ' + saved + ' positions');
+              load(c);
+            }).catch(function() {
+              if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Import failed');
+            });
           } catch (e) {
-            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Invalid JSON file');
+            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Invalid JSON: ' + e.message);
           }
         });
       }

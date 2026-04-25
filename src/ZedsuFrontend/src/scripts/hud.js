@@ -282,6 +282,12 @@ export function initHud() {
     hudExpanded.style.display = 'block';
   }
 
+  // Clear any existing timer to prevent memory leaks on re-init
+  if (pollTimer !== null) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
   applyCornerPlacement();
   pollBackend();
   pollTimer = setInterval(pollBackend, HUD_CONFIG.pollInterval);
