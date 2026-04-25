@@ -19,16 +19,16 @@
       {
         "label": "main",
         "title": "Zedsu — Operator Shell",
-        "width": 900,
-        "height": 700,
-        "minWidth": 800,
-        "minHeight": 600,
+        "width": 1100,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 640,
         "resizable": true,
         "fullscreen": false,
-        "visible": false,
+        "visible": true,
         "decorations": true,
         "skipTaskbar": false,
-        "url": "index.html"
+        "url": "index.html?shell=1"
       },
       {
         "label": "hud",
@@ -40,8 +40,8 @@
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "visible": true,
-        "url": "index.html"
+        "visible": false,
+        "url": "index.html?hud=1"
       }
     ],
     "security": {

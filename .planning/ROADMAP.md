@@ -312,9 +312,34 @@ Plans:
 - `.gitignore` covers all Phase 14+ generated artifacts — **PASS**
 - No stale npm/Node references in planning artifacts — **PASS**
 
+### Phase 14.6: Operator Shell Launch UX
+**Goal:** Change app launch UX so Operator Shell is visible at startup, HUD does not auto-show, and X button hides to tray instead of quitting.
+**Depends on:** Phase 14.5
+**Status**: Pending (implementation in progress)
+**Plans**: 1 plan
+
+**Changes:**
+- `src/ZedsuFrontend/tauri.conf.json`:
+  - `main`: `visible: true`, `url: "index.html?shell=1"`, size 1100x760
+  - `hud`: `visible: false`, `url: "index.html?hud=1"` (auto-hidden on startup)
+- `src/ZedsuFrontend/src/lib.rs`:
+  - `AppState::new()`: `hud_visible` starts `false` (not `true`)
+  - `on_window_event` on main window: close button → `prevent_default()` + `hide()` → app goes to tray
+  - F2 toggle and tray "Toggle HUD" use `hud_visible` state correctly
+
+**Acceptance criteria:**
+1. Launch Zedsu.exe opens full Operator Shell (1100x760, resizable)
+2. Main window visible at startup — no hidden window
+3. HUD does NOT auto-show on startup
+4. F2 toggles HUD correctly from first press
+5. X button hides to tray instead of quitting app
+6. Tray "Quit Zedsu" exits app and stops backend
+7. F4 / tray "Open Operator Shell" shows main window
+8. Smoke test backend still works after frontend changes
+
 ### Phase 15: Replay Benchmark & Regression Gate
 **Goal:** Turn detection/combat from "appears to work" into measurable metrics with replay fixtures and thresholds.
-**Depends on:** Phase 14
+**Depends on:** Phase 14.6
 **Status**: Pending
 **Plans**: 3 plans
 Plans:
@@ -382,7 +407,7 @@ Plans:
 
 **Execution Order:**
 v2: Phases 1-5 → 8 → 6 → 7 (all complete)
-v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 → 12.5 → 12.5.1 → 13 → 14 → 14.5 → 15 → 16 → 17 → 18 → 19
+v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 → 12.5 → 12.5.1 → 13 → 14 → 14.5 → 14.6 → 15 → 16 → 17 → 18 → 19
 
 | Phase | Plans | Status | Completed |
 |-------|-------|--------|-----------|
@@ -408,6 +433,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 13. Zedsu Operator Shell Redesign | 8/8 | Complete | 2026-04-25 |
 | 14. Real Production Build | 4/4 | Complete | 2026-04-26 |
 | 14.5 Production Tree Cleanup | 1/1 (5 commits) | Complete | 2026-04-26 |
+| 14.6 Operator Shell Launch UX | 1/1 | Pending | — |
 | 15. Replay Benchmark | 3/3 | Pending | — |
 | 16. Runtime Observability | 2/2 | Pending | — |
 | 17. Combat Quality & YOLO | 2/2 | Pending | — |

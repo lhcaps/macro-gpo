@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{Manager, State};
+use tauri::{Manager, State, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
@@ -133,7 +133,7 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         Self {
-            hud_visible: Arc::new(Mutex::new(true)),
+            hud_visible: Arc::new(Mutex::new(false)),
         }
     }
 }
@@ -725,8 +725,19 @@ pub fn run() {
 
             eprintln!("[ZEDSU] System tray initialized");
 
-            // Main window starts hidden (D-10a-01) — don't show it on startup
-            // User can reveal via F4 or system tray
+            // Intercept main window close button → hide to tray instead of quitting
+            if let Some(main_win) = app.get_webview_window("main") {
+                let app_h = app.handle().clone();
+                main_win.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        if let Some(main) = app_h.get_webview_window("main") {
+                            let _ = main.hide();
+                        }
+                        eprintln!("[ZEDSU] Main window close intercepted — hiding to tray");
+                    }
+                });
+            }
 
             Ok(())
         })
