@@ -23,7 +23,6 @@ Exit codes:
 import os
 import sys
 import time
-import socket
 import subprocess
 import urllib.request
 import urllib.error
@@ -58,27 +57,6 @@ def check_executables(dist_path: Path) -> tuple[bool, bool]:
         print(f"[FAIL] ZedsuBackend.exe not found: {backend_exe}")
 
     return zedsu_ok, backend_ok
-
-
-def wait_for_port(host: str, port: int, timeout: float = 20.0) -> bool:
-    """Wait for a TCP port to accept connections (HTTP server ready)."""
-    start = time.time()
-    while time.time() - start < timeout:
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(2.0)
-            result = sock.connect_ex((host, port))
-            sock.close()
-            elapsed = time.time() - start
-            if result == 0:
-                return True
-            # Only log every ~5s to avoid spam
-            if elapsed % 5 < 0.6:
-                print(f"[DEBUG] Port {port} not ready after {elapsed:.1f}s (connect result={result})")
-        except Exception as e:
-            pass
-        time.sleep(0.5)
-    return False
 
 
 def _kill_existing_backend() -> None:

@@ -118,7 +118,7 @@ python scripts/smoke_test_dist.py
 - Phase 12.5: Combat AI Core (extended) ✓
 - Phase 12.5.1: AI Runtime Wiring Hardening ✓
 - Phase 13: Operator Shell Redesign ✓
-- Phase 14: Production Build & Packaging — in progress
+- Phase 14: Production Build & Packaging ✓
 
 See `.planning/ROADMAP.md` for full details.
 

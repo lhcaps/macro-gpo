@@ -5,17 +5,17 @@
 See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
-**Current focus:** Phase 14 — Real Production Build & Packaging (4 plans)
-Active subphase: Phase 14 Wave 1+2 complete — all 4 plans done
+**Current focus:** Phase 15 — Replay Benchmark & Regression Gate
+Active subphase: Phase 14 complete
 
 ## Current Position
 
-Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-13 complete)
+Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-14 complete)
 Phase: 14 — Real Production Build & Packaging
-Status: Wave 1+2 complete — 4/4 plans done (14-01 legacy rename, 14-02 PyInstaller build, 14-03 Tauri build, 14-04 smoke test)
-Next: Phase 14 verification — $gsd-verify-work 14 (or manual smoke test)
+Status: Complete — production build verified, smoke test ALL CHECKS PASSED
+Next: Phase 15 planning / replay benchmark fixtures
 
-Progress: [▓▓▓▓▓▓▓▓▓▓] Phase 9-13 complete; Phase 14 pending
+Progress: [▓▓▓▓▓▓▓▓▓▓] Phase 9-14 complete; Phase 15 pending
 
 ## Accumulated Context
 

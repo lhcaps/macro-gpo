@@ -12,8 +12,18 @@
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
-# ---- Backup runtime data ----
+# ---- Kill existing ZedsuBackend processes first (release file locks before backup) ----
 $DistDir = Join-Path $ProjectRoot "dist\Zedsu"
+$BackendExe = Join-Path $DistDir "ZedsuBackend.exe"
+
+Write-Host "[build] Killing any running ZedsuBackend processes..."
+Get-Process | Where-Object { $_.Name -like '*ZedsuBackend*' } | ForEach-Object {
+    Write-Host "[build] Killing PID: $($_.Id)"
+    Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+}
+Start-Sleep 2
+
+# ---- Backup runtime data ----
 $BackupDir = Join-Path $ProjectRoot ".build_backend_backup"
 $RuntimeItems = @("config.json", "debug_log.txt", "runs", "captures")
 
@@ -51,15 +61,6 @@ try {
 # ---- Remove old build artifacts ----
 $BuildDir = Join-Path $ProjectRoot "build_backend"
 $SpecFile = Join-Path $ProjectRoot "ZedsuBackend.spec"
-$BackendExe = Join-Path $DistDir "ZedsuBackend.exe"
-
-# Kill any running ZedsuBackend processes to release file locks
-Write-Host "[build] Killing any running ZedsuBackend processes..."
-Get-Process | Where-Object { $_.Name -like '*ZedsuBackend*' } | ForEach-Object {
-    Write-Host "[build] Killing PID: $($_.Id)"
-    Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
-}
-Start-Sleep 2
 
 if (Test-Path $BuildDir) { Remove-Item $BuildDir -Recurse -Force }
 if (Test-Path $SpecFile) { Remove-Item $SpecFile -Force }

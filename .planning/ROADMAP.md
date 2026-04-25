@@ -248,7 +248,7 @@ Exit criteria:
 ### Phase 14: Real Production Build & Packaging
 **Goal:** v3 production build — NOT the legacy Tkinter build_exe.py packaging. Tauri frontend + PyInstaller backend as separate executables.
 **Depends on:** Phase 10, Phase 13
-**Status**: Wave 1+2 complete (14-01, 14-02, 14-03, 14-04) — 4/4 plans done
+**Status**: Complete (2026-04-26) — build verified, smoke test ALL CHECKS PASSED
 **Plans**: 4 plans
 Plans:
 - [x] 14-01-PLAN.md — Legacy build rename: build_exe.py → build_legacy_tkinter.py, add warning comment ✅ 2026-04-25
@@ -370,8 +370,8 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.4 Discord Event System | 2/2 | Complete | 2026-04-25 |
 | 12.5 Combat AI Foundation | 7/7 | Complete | 2026-04-25 |
 | 12.5.1 AI Wiring Hardening | 1/1 | Complete | 2026-04-25 |
-| 13. Zedsu Operator Shell Redesign | 8/8 | Pending | — |
-| 14. Real Production Build | 4/4 | Planned | — |
+| 13. Zedsu Operator Shell Redesign | 8/8 | Complete | 2026-04-25 |
+| 14. Real Production Build | 4/4 | Complete | 2026-04-26 |
 | 15. Replay Benchmark | 3/3 | Pending | — |
 | 16. Runtime Observability | 2/2 | Pending | — |
 | 17. Combat Quality & YOLO | 2/2 | Pending | — |
