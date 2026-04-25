@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 # Path resolution (PyInstaller compatible)
 if getattr(sys, 'frozen', False):
     _SCRIPT_DIR = os.path.dirname(sys.executable)
-    _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
+    _PROJECT_ROOT = _SCRIPT_DIR  # CORRECT: exe is in dist/Zedsu/, so config lives at dist/Zedsu/config.json
 else:
     _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
