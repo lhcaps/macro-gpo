@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
 **Current focus:** Phase 14 — Real Production Build & Packaging (4 plans)
-Active subphase: Phase 14 context captured (2026-04-25)
+Active subphase: Phase 14 planned — 4 plans in 3 waves (2026-04-25)
 
 ## Current Position
 

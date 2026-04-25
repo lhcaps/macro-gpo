@@ -1,4 +1,4 @@
-# Roadmap: Zedsu v3 — 3-Tier Architecture Revamp
+﻿# Roadmap: Zedsu v3 — 3-Tier Architecture Revamp
 
 ## Overview
 
@@ -248,13 +248,13 @@ Exit criteria:
 ### Phase 14: Real Production Build & Packaging
 **Goal:** v3 production build — NOT the legacy Tkinter build_exe.py packaging. Tauri frontend + PyInstaller backend as separate executables.
 **Depends on:** Phase 10, Phase 13
-**Status**: Pending
+**Status**: Ready to execute — 4 plans written
 **Plans**: 4 plans
 Plans:
-- [ ] 14-01-PLAN.md — Legacy build rename: build_exe.py → build_legacy_tkinter.py, add warning comment
-- [ ] 14-02-PLAN.md — Backend PyInstaller build: entry src/zedsu_backend.py, include src package/assets/models, hiddenimports: cv2, numpy, mss, PIL, win32
-- [ ] 14-03-PLAN.md — Tauri production build: bundle backend as sidecar, configure icon/resources, no hardcoded dev URL
-- [ ] 14-04-PLAN.md — Build all script: scripts/build_all.ps1, smoke_test_dist.py
+- [x] 14-01-PLAN.md — Legacy build rename: build_exe.py → build_legacy_tkinter.py, add warning comment
+- [x] 14-02-PLAN.md — Backend PyInstaller build: entry src/zedsu_backend.py, include src package/assets/models, hiddenimports: cv2, numpy, mss, PIL, win32
+- [x] 14-03-PLAN.md — Tauri production build: bundle backend as sidecar, configure icon/resources, no hardcoded dev URL
+- [x] 14-04-PLAN.md — Build all script: scripts/build_all.ps1, smoke_test_dist.py
 
 Layout:
 ```
@@ -371,7 +371,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.5 Combat AI Foundation | 7/7 | Complete | 2026-04-25 |
 | 12.5.1 AI Wiring Hardening | 1/1 | Complete | 2026-04-25 |
 | 13. Zedsu Operator Shell Redesign | 8/8 | Pending | — |
-| 14. Real Production Build | 4/4 | Pending | — |
+| 14. Real Production Build | 4/4 | Planned | — |
 | 15. Replay Benchmark | 3/3 | Pending | — |
 | 16. Runtime Observability | 2/2 | Pending | — |
 | 17. Combat Quality & YOLO | 2/2 | Pending | — |
