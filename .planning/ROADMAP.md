@@ -248,13 +248,13 @@ Exit criteria:
 ### Phase 14: Real Production Build & Packaging
 **Goal:** v3 production build — NOT the legacy Tkinter build_exe.py packaging. Tauri frontend + PyInstaller backend as separate executables.
 **Depends on:** Phase 10, Phase 13
-**Status**: Wave 1 complete (14-01, 14-02) — 2/4 plans done
+**Status**: Wave 1+2 complete (14-01, 14-02, 14-03, 14-04) — 4/4 plans done
 **Plans**: 4 plans
 Plans:
 - [x] 14-01-PLAN.md — Legacy build rename: build_exe.py → build_legacy_tkinter.py, add warning comment ✅ 2026-04-25
 - [x] 14-02-PLAN.md — Backend PyInstaller build: entry src/zedsu_backend.py, include src package/assets/models, hiddenimports: cv2, numpy, mss, PIL, win32 ✅ 2026-04-25
-- [ ] 14-03-PLAN.md — Tauri production build: bundle backend as sidecar, configure icon/resources, no hardcoded dev URL
-- [ ] 14-04-PLAN.md — Build all script: scripts/build_all.ps1, smoke_test_dist.py
+- [x] 14-03-PLAN.md — Tauri production build: bundle backend as sidecar, configure icon/resources, no hardcoded dev URL ✅ 2026-04-25
+- [x] 14-04-PLAN.md — Build all script: scripts/build_all.ps1, smoke_test_dist.py ✅ 2026-04-25
 
 Layout:
 ```

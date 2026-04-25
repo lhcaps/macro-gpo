@@ -6,14 +6,14 @@ See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
 **Current focus:** Phase 14 — Real Production Build & Packaging (4 plans)
-Active subphase: Phase 14 Wave 1 complete — 14-01 + 14-02 done; Wave 2 pending (14-03 Tauri build, 14-04 smoke test)
+Active subphase: Phase 14 Wave 1+2 complete — all 4 plans done
 
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-13 complete)
 Phase: 14 — Real Production Build & Packaging
-Status: Wave 1 complete — 2/4 plans done (14-01 legacy rename, 14-02 PyInstaller build)
-Next: Wave 2 — $gsd-execute-phase 14 --wave 2
+Status: Wave 1+2 complete — 4/4 plans done (14-01 legacy rename, 14-02 PyInstaller build, 14-03 Tauri build, 14-04 smoke test)
+Next: Phase 14 verification — $gsd-verify-work 14 (or manual smoke test)
 
 Progress: [▓▓▓▓▓▓▓▓▓▓] Phase 9-13 complete; Phase 14 pending
 
@@ -333,23 +333,23 @@ All 9 exit criteria: 7 PASS, 2 DEFERRED with rationale.
 
 **Next:** Phase 14 — Real Production Build & Packaging
 
-## Session Continuity (2026-04-25 — Phase 14 Wave 1)
+## Session Continuity (2026-04-25 — Phase 14 Wave 2)
 
-Phase 14 Wave 1 executed: 14-01 + 14-02.
+Phase 14 Wave 2 executed: 14-03 + 14-04.
 
-**14-01: Legacy build rename**
-- `build_exe.py` renamed to `build_legacy_tkinter.py` via `git mv`
-- WARNING comment block prepended: points to `scripts/build_all.ps1` for v3 build
-- Zero runtime references to old name (documentation refs in `.planning/` are OK)
+**14-03: Tauri Frontend Build**
+- Created `scripts/build_frontend.ps1` — npm install + npm run build + cargo build --release, copies to dist/Zedsu/Zedsu.exe
+- Updated `src/ZedsuFrontend/tauri.conf.json` — added `"icon": ["icons/icon.ico"]` in bundle config
+- Verified `lib.rs` BackendManager — `BACKEND_EXE="ZedsuBackend.exe"`, `find_backend_exe()` checks same-dir first (no changes needed)
+- Confirmed `src/ZedsuFrontend/icons/icon.ico` already exists (205 bytes)
 
-**14-02: Backend PyInstaller build**
-- Fixed `src/zedsu_backend.py` frozen path: `_PROJECT_ROOT = _SCRIPT_DIR` (was `os.path.dirname(_SCRIPT_DIR)`)
-- Created `scripts/build_backend.ps1` — full PyInstaller workflow with spec generation, backup/restore, 11 hidden imports, `console=False`
-- Created `dist/Zedsu/` directory structure (logs/, runs/, captures/, diagnostics/, assets/models/)
-- Fixed `utf8BOM` → `UTF8` encoding (PowerShell 5.x compatibility)
-- Built `dist/Zedsu/ZedsuBackend.exe` — 900 MB single-file, windowed
-- `ZedsuBackend.spec` not committed (gitignored, generated at build time)
+**14-04: Build Orchestration + Smoke Test**
+- Created `scripts/build_all.ps1` — 5-step pipeline: create dirs → backend build → frontend build → copy assets → smoke test
+- Created `scripts/smoke_test_dist.py` — verifies dist layout, port 9761 health, /health + /state idle, process cleanup
 
-**Build:** PyInstaller 6.19.0 — ~7.5 min build time on this machine.
+**Build scripts ready:**
+- `scripts/build_all.ps1` — single entry point for v3 production build
+- `scripts/build_backend.ps1` — PyInstaller backend build (from Wave 1)
+- `scripts/build_frontend.ps1` — Tauri frontend build (Wave 2)
 
-**Next:** Wave 2 — `$gsd-execute-phase 14 --wave 2` (14-03 Tauri build, 14-04 smoke test)
+**Next:** Phase 14 verification or next phase
