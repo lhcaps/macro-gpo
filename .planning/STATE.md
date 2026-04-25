@@ -6,16 +6,16 @@ See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Zedsu is a recoverable, screen-based GPO BR automation runtime. It must always show where the loop is, why it is stuck, what it tried, and what the operator should fix next.
 **Current focus:** Phase 13 — Zedsu Operator Shell Redesign (8 plans, 3 waves)
-Active subphase: Phase 13 pending — execute Wave 1 (13-00, 13-01, 13-02)
+Active subphase: Phase 13 Wave 2 complete: 13-03 (Operator Shell Layout) + 13-04 (Settings v3)
 
 ## Current Position
 
 Milestone: v3 — 3-Tier Architecture Revamp (Phase 9-12.5.1 complete)
-Phase: 13 pending — Zedsu Operator Shell Redesign (8 plans, 3 waves)
-Status: Phase 12.5.1 complete; Phase 13 next — execute Wave 1 (13-00, 13-01, 13-02)
-Next: Execute Wave 1 only: 13-00, 13-01, 13-02. Do not execute 13-04 until config-api.js contract is verified against backend.
+Phase: 13 — Zedsu Operator Shell Redesign
+Status: Wave 1 (13-00, 13-01, 13-02) + Wave 2 (13-03, 13-04) complete. Wave 3 (13-05+) pending.
+Next: Execute Wave 3 (13-05+) — user must explicitly unlock.
 
-Progress: [▓▓▓▓▓▓▓▓▓░] v2 complete, v3 Phase 9-12.5.1 complete (Phase 13 next)
+Progress: [▓▓▓▓▓▓▓▓░░] Wave 1 + Wave 2 complete; Wave 3 (13-05+) pending
 
 ## Accumulated Context
 
