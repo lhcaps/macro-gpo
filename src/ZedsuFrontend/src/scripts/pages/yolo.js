@@ -71,25 +71,34 @@ export async function load(c) {
       toggleCapture: function() {
         var yoloState = (window.ShellApi && window.ShellApi.getState() && window.ShellApi.getState()._raw) ? window.ShellApi.getState()._raw.yolo_model || {} : {};
         var isCap = yoloState.capturing;
-        var cmd = isCap ? 'yolo_capture_stop' : 'yolo_capture_start';
-        api.sendYoloCommand(cmd, {}).then(function(res) {
-          if (res && res.status === 'ok') {
-            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success(isCap ? 'Capture stopped' : 'Capture started');
-            load(c);
-          } else {
-            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Capture failed: ' + (res && res.message || 'unknown'));
-          }
-        });
+        if (isCap) {
+          api.sendYoloCommand('yolo_capture_stop', {}).then(function(res) {
+            if (res && res.status === 'ok') {
+              if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success('Capture stopped');
+              load(c);
+            } else {
+              if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Capture failed: ' + (res && res.message || 'unknown'));
+            }
+          });
+        } else {
+          var clsEl = document.getElementById('yolo-capture-class');
+          var cls = clsEl ? clsEl.value : '';
+          api.sendYoloCommand('yolo_capture_start', { class_name: cls }).then(function(res) {
+            if (res && res.status === 'ok') {
+              if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success('Capture started' + (cls ? ' (' + cls + ')' : ''));
+              load(c);
+            } else {
+              if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Capture failed: ' + (res && res.message || 'unknown'));
+            }
+          });
+        }
       },
       setCaptureClass: function(cls) {
-        if (!cls) return;
-        api.sendYoloCommand('set_capture_class', { capture_class: cls }).then(function(res) {
-          if (res && res.status === 'ok') {
-            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success('Capture class set to: ' + cls);
-          } else {
-            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Failed to set capture class');
-          }
-        });
+        // Store in local UI state only — no backend action needed.
+        // The class will be sent with yolo_capture_start.
+        var clsEl = document.getElementById('yolo-capture-class');
+        if (clsEl) clsEl.value = cls;
+        if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.info('Capture class set to: ' + cls);
       },
       listModels: function() {
         api.sendYoloCommand('yolo_model_list', {}).then(function(res) {

@@ -106,30 +106,34 @@ function normalizeBackendState(data) {
 
   const hud = data.hud || {};
   const combat = data.combat || {};
-  const discord = data.discord_events || {};
+  const config = data.config || {};
+  const discord = config.discord_events || {};
   const yolo = data.yolo_model || {};
-  const setup = data.setup_issues || {};
+  const logs = data.logs || [];
+  const running = !!data.running;
+
+  const statusText = String(data.status || (running ? 'Running' : 'Idle')).toLowerCase();
 
   return {
-    bot_status: hud.status || data.bot_status || 'idle',
-    backend_health: data.backend_health || 'unknown',
-    combat_state: combat.state || combat.combat_state || null,
-    kills: combat.kills || 0,
-    match_num: combat.match_num || hud.match_num || null,
-    elapsed: hud.elapsed || 0,
-    last_event: combat.last_event || null,
+    bot_status: running ? 'running' : statusText,
+    backend_health: 'ok',
+    combat_state: hud.combat_state || combat.state || combat.combat_state || 'IDLE',
+    kills: hud.kills ?? combat.kills ?? 0,
+    match_num: hud.match_count ?? combat.match_count ?? null,
+    elapsed: hud.elapsed_sec ?? 0,
+    latency: hud.detection_ms ?? 0,
     intent: combat.intent || null,
     crowd_risk: combat.crowd_risk ?? null,
     death_reason: combat.death_reason || null,
     target_visible: combat.target_visible ?? null,
-    latency: hud.latency || 0,
-    has_webhook: discord.has_webhook || false,
+    has_webhook: !!discord.has_webhook,
     webhook_events: discord.events || [],
-    yolo_available: yolo.available || false,
-    yolo_model: yolo.model_name || yolo.active_model || null,
+    yolo_available: !!yolo.available,
+    yolo_model: yolo.model_path || yolo.active_model || null,
     yolo_quality: yolo.quality_score ?? null,
-    setup_issues: setup.issues || [],
-    uptime: data.uptime || 0,
+    logs,
+    setup_issues: [],
+    uptime: data.uptime_sec || data.uptime || 0,
     _raw: data,
   };
 }

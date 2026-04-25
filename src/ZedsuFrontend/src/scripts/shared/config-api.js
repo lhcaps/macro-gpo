@@ -39,7 +39,7 @@ export async function updateConfig(updates) {
 }
 
 // ============================================================
-// Regions — fetch via /command, NOT from /state
+// Region — pick via select_region, resolve via resolve_region / resolve_all_regions
 // ============================================================
 
 export async function getRegions() {
@@ -51,8 +51,16 @@ export async function setRegion(name, region) {
   return postCommand('set_region', { name, ...region });
 }
 
+export async function selectRegion(name) {
+  return postCommand('select_region', { name });
+}
+
 export async function resolveRegion(name) {
   return postCommand('resolve_region', { name });
+}
+
+export async function resolveAllRegions() {
+  return postCommand('resolve_all_regions');
 }
 
 export async function deleteRegion(name) {

@@ -100,7 +100,10 @@ export async function load(c) {
         api.resolvePosition(name)
           .then(function(res) {
             if (res && res.status === 'ok') {
-              if (el) { el.innerHTML = '<span style="color:var(--color-running)">&#x2713; Clicked at (' + Math.round(res.x || 0) + ', ' + Math.round(res.y || 0) + ')</span>'; el.className = 'position-test-result'; }
+              var pos = res.position || res;
+              var x = pos.x !== undefined ? pos.x : (pos[0] !== undefined ? pos[0] : 0);
+              var y = pos.y !== undefined ? pos.y : (pos[1] !== undefined ? pos[1] : 0);
+              if (el) { el.innerHTML = '<span style="color:var(--color-running)">&#x2713; Clicked at (' + Math.round(x) + ', ' + Math.round(y) + ')</span>'; el.className = 'position-test-result'; }
             } else {
               if (el) { el.innerHTML = '<span style="color:var(--color-error)">&#x2717; ' + (res && res.message || 'Failed') + '</span>'; el.className = 'position-test-result'; }
             }

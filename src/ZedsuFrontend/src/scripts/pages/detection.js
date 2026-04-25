@@ -133,7 +133,7 @@ export async function load(c) {
       },
       pickRegion: function(name) {
         if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.info('Starting region picker for: ' + name);
-        api.setRegion(name, { pick: true }).then(function(res) {
+        api.selectRegion(name).then(function(res) {
           if (res && res.status === 'ok') {
             if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success(name + ' region set');
             load(c);
@@ -143,9 +143,9 @@ export async function load(c) {
         });
       },
       testRegion: function(name) {
-        api.setRegion(name, { test: true }).then(function(res) {
+        api.resolveRegion(name).then(function(res) {
           if (res && res.status === 'ok') {
-            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success(name + ': ' + res.value);
+            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success(name + ': ' + (res.value || 'ok'));
           } else {
             if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Test failed: ' + (res && res.message || 'unknown'));
           }
@@ -157,11 +157,12 @@ export async function load(c) {
         var done = 0;
         for (var k = 0; k < REGIONS.length; k++) {
           (function(name) {
-            api.setRegion(name, { validate: true }).then(function(res) {
+            api.resolveRegion(name).then(function(res) {
               results.push({ name: name, ok: res && res.status === 'ok', value: res && res.value });
               done++;
               if (done === count) {
-                var okCount = results.filter(function(r) { return r.ok; }).length;
+                var okCount = 0;
+                for (var m = 0; m < results.length; m++) { if (results[m].ok) okCount++; }
                 if (window.ShellApi && window.ShellApi.Toast) {
                   if (okCount === count) window.ShellApi.Toast.success('All ' + count + ' regions valid');
                   else window.ShellApi.Toast.warn(okCount + '/' + count + ' regions valid');

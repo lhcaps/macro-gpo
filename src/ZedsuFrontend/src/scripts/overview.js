@@ -61,7 +61,7 @@ function renderOverview(state = {}) {
             </div>
             <div class="metric-row">
               <span class="metric-label">Detection Latency</span>
-              <span class="metric-value font-mono ${state.latency > 100 ? 'text-warning' : 'text-cyan'}">${state.latency}ms</span>
+              <span class="metric-value font-mono ${state.latency > 200 ? 'text-error' : state.latency > 100 ? 'text-warning' : 'text-cyan'}">${state.latency}ms</span>
             </div>
             ${issues.length > 0 ? `
             <div class="metric-row">
@@ -152,7 +152,7 @@ function renderOverview(state = {}) {
             </div>
             <div class="metric-row">
               <span class="metric-label">Detection Latency</span>
-              <span class="metric-value font-mono ${state.latency > 100 ? 'text-warning' : 'text-cyan'}">${state.latency}ms</span>
+              <span class="metric-value font-mono ${state.latency > 200 ? 'text-error' : state.latency > 100 ? 'text-warning' : 'text-cyan'}">${state.latency}ms</span>
             </div>
           </div>
           <div class="metric-card-footer">

@@ -86,7 +86,7 @@ export async function load(c) {
     // Death Classifier
     html += '<div class="settings-section"><div class="section-header"><h2 class="section-title">Death Classifier</h2><p class="section-desc">Analyze and classify death events (Phase 12.5 feature)</p></div><div class="section-card">';
     html += '<div class="setting-row"><div class="setting-info"><span class="setting-label">Enable Death Classifier</span><p class="setting-desc">Analyze screen to determine cause of death</p></div>';
-    var deathClsEnabled = aiConfig.death_classifier && aiConfig.death_classifier.enabled;
+    var deathClsEnabled = aiConfig.death_classifier_enabled !== false;
     html += toggle('ai-death-classifier-enabled', deathClsEnabled, 'if(window.__combatAiPage)window.__combatAiPage.save(\'death_classifier\')') + '</div>';
     html += '<div class="setting-row"><div class="setting-info"><span class="setting-label">Last Death Reason</span><p class="setting-desc">Most recent classified death cause</p></div>';
     html += '<span class="metric-value text-error font-mono">' + e(deathReason) + '</span></div>';
