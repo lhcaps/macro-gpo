@@ -57,7 +57,7 @@ Progress: [▓▓▓▓▓▓▓▓▓▓] Phase 9-14 complete; Phase 15 pending
 ### Decisions (Milestone v3 — Phase 10)
 
 - Hidden Main Window — app starts invisible, accessible via system tray or hotkey
-- 2-row Combat Focus HUD layout (300×80px, top-right, glassmorphism + neon glow)
+- 2-row Combat Focus HUD layout (360x120px, top-right, glassmorphism + neon glow)
   - Top row: FSM state in large glowing text (e.g., `[ 🔴 COMBAT ]`) with status color
   - Bottom row: core stats in small muted text (e.g., `⏱ 05:23 | ⚔ Kills: 12 | ⚡ 15ms`)
 - JetBrains Mono font — monospaced, no pixel jitter on changing numbers, sharp professional look
@@ -147,11 +147,11 @@ Progress: [▓▓▓▓▓▓▓▓▓▓] Phase 9-14 complete; Phase 15 pending
 | UI | Insights panel | Removed per user request | 2026-04-24 |
 | Architecture | 3-tier separation | Phase 9 (v3) | 2026-04-24 |
 | Architecture | Rust/Tauri GUI | Phase 10 (v3) | 2026-04-24 |
-| Build | Production packaging | Phase 14 (v3) | 2026-04-24 |
+| Build | Production packaging | Phase 14 (v3) | Complete (2026-04-26) |
 | Features | Walk recording/playback | Phase 15 (future) | 2026-04-24 |
 | Features | Audio RMS monitoring | Not needed for FPS combat | 2026-04-24 |
 | Features | YouTube subscribe gating | Not relevant for combat bot | 2026-04-24 |
-| Build | cargo check/build | Phase 13 (Rust toolchain unavailable) | 2026-04-25 |
+| Build | cargo check/build | Phase 13 (Rust toolchain unavailable) | Complete (2026-04-25) |
 
 ## Research Status
 
@@ -338,14 +338,15 @@ All 9 exit criteria: 7 PASS, 2 DEFERRED with rationale.
 Phase 14 Wave 2 executed: 14-03 + 14-04.
 
 **14-03: Tauri Frontend Build**
-- Created `scripts/build_frontend.ps1` — npm install + npm run build + cargo build --release, copies to dist/Zedsu/Zedsu.exe
+- Created `scripts/build_frontend.ps1` — static HTML/CSS/JS copy to `src/ZedsuFrontend-dist/` + cargo build --release, copies to dist/Zedsu/Zedsu.exe
+- Node.js/npm no longer required for frontend build
 - Updated `src/ZedsuFrontend/tauri.conf.json` — added `"icon": ["icons/icon.ico"]` in bundle config
 - Verified `lib.rs` BackendManager — `BACKEND_EXE="ZedsuBackend.exe"`, `find_backend_exe()` checks same-dir first (no changes needed)
 - Confirmed `src/ZedsuFrontend/icons/icon.ico` already exists (205 bytes)
 
 **14-04: Build Orchestration + Smoke Test**
 - Created `scripts/build_all.ps1` — 5-step pipeline: create dirs → backend build → frontend build → copy assets → smoke test
-- Created `scripts/smoke_test_dist.py` — verifies dist layout, port 9761 health, /health + /state idle, process cleanup
+- Created `scripts/smoke_test_dist.py` — polls `/health` HTTP endpoint for up to 25s, verifies `/state` idle, clean process teardown
 
 **Build scripts ready:**
 - `scripts/build_all.ps1` — single entry point for v3 production build
@@ -353,3 +354,33 @@ Phase 14 Wave 2 executed: 14-03 + 14-04.
 - `scripts/build_frontend.ps1` — Tauri frontend build (Wave 2)
 
 **Next:** Phase 14 verification or next phase
+
+## Session Continuity (2026-04-26 — Phase 14 Completion Hardening)
+
+Phase 14 complete. All production build and packaging artifacts synced with implemented code.
+
+**Hardening fixes applied:**
+- `build_frontend.ps1`: switched from npm build to static HTML/CSS/JS copy — no Node.js required
+- `build_all.ps1`: smoke test now hard-fails build (exits non-zero) instead of WARNING-only
+- `smoke_test_dist.py`: replaced raw socket `wait_for_port()` with direct HTTP `/health` polling (up to 25s)
+- `smoke_test_dist.py`: replaced `psutil` process killing with PowerShell `Get-Process` + `Stop-Process` (no external deps)
+- `smoke_test_dist.py`: removed `stdout=PIPE, stderr=PIPE` from `subprocess.Popen` (windowed exe doesn't pipe)
+- `build_backend.ps1`: moved ZedsuBackend process kill before runtime backup (prevents file lock errors)
+- `build_frontend.ps1`: added process kill before frontend rebuild (prevents file lock errors)
+
+**Build pipeline verified:**
+- `scripts/build_all.ps1` runs end-to-end: backend build → frontend build → smoke test
+- `smoke_test_dist.py`: ALL CHECKS PASSED
+- `dist/Zedsu/Zedsu.exe` + `dist/Zedsu/ZedsuBackend.exe` both exist
+
+**Artifacts synced:**
+- `README.md`: Phase 14 status → ✓, HUD size → 360x120px
+- `.planning/ROADMAP.md`: Phase 13+14 progress table updated, Phase 14 status → Complete
+- `.planning/STATE.md`: current focus → Phase 15
+- `.planning/PROJECT.md`: last updated → 2026-04-26, Phase 9-14 complete, Phase 15 active
+- `14-03-PLAN.md`: static copy acceptance criteria (no npm/Node)
+- `14-03-SUMMARY.md`: static copy summary (no npm/Node)
+- `14-04-PLAN.md`: HTTP polling, hard-fail, post-plan corrections table
+- `14-04-SUMMARY.md`: HTTP polling summary, patterns, decisions
+
+**Next:** Phase 15 — Replay Benchmark & Regression Gate

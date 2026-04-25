@@ -23,13 +23,17 @@ key-files:
 
 key-decisions:
   - "build_all.ps1: 5-step pipeline: create dirs → backend build → frontend build → copy assets → smoke test"
-  - "smoke_test_dist.py: checks dist/Zedsu/ layout, starts backend, waits for port 9761, /health + /state verification"
-  - "smoke_test_dist.py: process lifecycle managed in finally block (no orphan processes)"
+  - "smoke_test_dist.py: polls /health HTTP endpoint directly (not raw socket), starts backend, checks /health + /state idle, kills process in finally"
   - "smoke_test_dist.py: exit codes 0-6 map to specific failure modes"
+  - "build_all.ps1: hard-fails (exit non-zero) on smoke test failure — not WARNING-only"
+  - "No Node.js/npm required for any build step"
+  - "Post-plan corrections applied: raw socket → HTTP polling, psutil → PowerShell kill, WARNING → hard fail"
 
 patterns-established:
   - "Build orchestration: always call backend first (runtime data backup/restore), then frontend"
-  - "Smoke test: verify process lifecycle and HTTP contract, defer hotkey testing to manual UAT"
+  - "Smoke test: verify process lifecycle and HTTP /health contract, defer hotkey testing to manual UAT"
+  - "Smoke test: HTTP /health polling is more reliable than raw socket checks for PyInstaller-bundled Python"
+  - "Build hard-fails on smoke failure — WARNING-only is insufficient for CI-gated releases"
 
 requirements-completed:
   - Create scripts/build_all.ps1 orchestration script
@@ -53,7 +57,7 @@ completed: 2026-04-25
 
 ## Accomplishments
 - Created `scripts/build_all.ps1` — 5-step orchestration: create dirs → backend build → frontend build → copy assets → smoke test
-- Created `scripts/smoke_test_dist.py` — smoke test verifying dist layout, process lifecycle, port 9761 health, /health endpoint, /state idle check, clean process teardown
+- Created `scripts/smoke_test_dist.py` — smoke test polling `/health` HTTP endpoint for up to 25s, verifies `/state` idle, clean process teardown in finally block. Raw socket `wait_for_port` removed.
 - Both scripts pass syntax validation (PowerShell and Python)
 
 ## Task Commits
@@ -71,8 +75,9 @@ completed: 2026-04-25
 
 - **Step ordering**: backend (with backup/restore) before frontend — preserves user config data
 - **Smoke test exit codes**: specific exit codes (1-6) map to distinct failure modes for programmatic CI integration
-- **Hotkey testing deferred**: F1/F3 verification requires UI automation harness not available in headless build environment — deferred to manual UAT
-- **Process cleanup**: always terminates backend in `finally` block, no orphan processes left behind
+- **Hard-fail on smoke failure**: `build_all.ps1` exits non-zero when smoke test fails — not a WARNING — preventing broken builds from being shipped
+- **HTTP /health polling**: smoke test sends direct HTTP GET to `/health` endpoint instead of raw socket check — more reliable for PyInstaller-bundled Python applications with cold-start delays
+- **PowerShell process cleanup**: `_kill_existing_backend()` uses PowerShell `Get-Process` + `Stop-Process` via `subprocess.run` instead of `psutil` (which was silently failing if not installed)
 
 ## Deviations from Plan
 
@@ -86,8 +91,8 @@ None.
 
 - Python (for smoke_test_dist.py) — standard Python 3 with no external dependencies
 - PyInstaller (for backend build step)
-- Node.js + npm (for frontend build step)
 - Rust/cargo (for Tauri build step)
+- No Node.js or npm required for any build step
 
 ## Next Phase Readiness
 

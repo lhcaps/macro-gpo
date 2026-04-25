@@ -22,13 +22,14 @@ key-files:
   modified: [src/ZedsuFrontend/tauri.conf.json]
 
 key-decisions:
-  - "build_frontend.ps1: npm install (conditional) → npm run build → cargo build --release"
+  - "build_frontend.ps1: static HTML/CSS/JS copy → cargo build --release (no npm/Node)"
   - "tauri.conf.json: icon updated from [] to [\"icons/icon.ico\"]"
   - "lib.rs: BACKEND_EXE=\"ZedsuBackend.exe\", find_backend_exe() checks same-dir first — no changes needed"
   - "icon.ico: 205 bytes, already exists at src/ZedsuFrontend/icons/icon.ico"
+  - "Node.js/npm not required for production frontend build — static copy is sufficient"
 
 patterns-established:
-  - "Tauri build requires frontend pre-built (src/ZedsuFrontend-dist/) before cargo build"
+  - "Tauri build copies static frontend assets to src/ZedsuFrontend-dist/ before cargo build"
   - "frontendDist in tauri.conf.json points to pre-built output directory"
   - "Rust binary name is zedsu_frontend.exe; copied as Zedsu.exe to dist/Zedsu/"
 
@@ -54,7 +55,7 @@ completed: 2026-04-25
 - **Files modified:** 2 (1 created, 1 edited)
 
 ## Accomplishments
-- Created `scripts/build_frontend.ps1` — orchestrates npm install → npm run build → cargo build --release → copy to dist/Zedsu/Zedsu.exe
+- Created `scripts/build_frontend.ps1` — static HTML/CSS/JS copy → cargo build --release → copy to dist/Zedsu/Zedsu.exe. Node.js/npm no longer required.
 - Updated `src/ZedsuFrontend/tauri.conf.json` — added `"icon": ["icons/icon.ico"]` in bundle config
 - Verified `lib.rs` BackendManager — `BACKEND_EXE = "ZedsuBackend.exe"` at line 30, `find_backend_exe()` checks same-dir first at lines 168-169, no changes needed
 - Confirmed `src/ZedsuFrontend/icons/icon.ico` already exists (205 bytes)
@@ -68,7 +69,7 @@ completed: 2026-04-25
 
 ## Files Created/Modified
 
-- `scripts/build_frontend.ps1` - Tauri build script: npm install + npm run build + cargo build --release, copies output to dist/Zedsu/Zedsu.exe
+- `scripts/build_frontend.ps1` - Tauri build script: static HTML/CSS/JS copy to src/ZedsuFrontend-dist/ + cargo build --release, copies output to dist/Zedsu/Zedsu.exe. No Node.js/npm.
 - `src/ZedsuFrontend/tauri.conf.json` - Updated bundle.icon from [] to ["icons/icon.ico"]
 
 ## Decisions Made
@@ -87,8 +88,8 @@ None.
 
 ## User Setup Required
 
-- Node.js and npm for `npm run build`
 - Rust toolchain (cargo) for `cargo build --release`
+- No Node.js or npm required for production build
 - If icon.ico is regenerated in future, verify it remains at `src/ZedsuFrontend/icons/icon.ico`
 
 ## Next Phase Readiness

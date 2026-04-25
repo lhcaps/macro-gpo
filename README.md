@@ -40,7 +40,7 @@ src/zedsu_core.py (Python)
 - Fight/flight: M1 spam + dodge in ENGAGED, camera scan in SCANNING, evasive in FLEEING
 
 ### Modern GUI (Tauri WebView)
-- Transparent overlay HUD (300x80px, top-right, glassmorphism + neon glow)
+- Transparent overlay HUD (360x120px, top-right, glassmorphism + neon glow)
 - JetBrains Mono font — no pixel jitter on changing numbers
 - Minimal 4 hotkeys: F1=Stop, F2=Toggle HUD, F3=Start/Stop, F4=Settings
 - YOLO model quality status in HUD (OK / No model / Quality: 73%)

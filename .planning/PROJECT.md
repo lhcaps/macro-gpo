@@ -3,7 +3,7 @@
 **Game:** Grand Piece Online (GPO) Battle Royale
 **Platform:** Windows desktop automation
 **Type:** Recoverable, screen-based GPO BR automation runtime
-**Last updated:** 2026-04-24 (after Phase 11.5 completion)
+**Last updated:** 2026-04-26 (after Phase 14 completion)
 
 ---
 
@@ -156,7 +156,7 @@ docs/
 
 config.json                 # Runtime config (generated)
 requirements.txt           # Python dependencies
-build_exe.py              # PyInstaller bundling script
+build_legacy_tkinter.py  # Deprecated legacy Tkinter build (Phase 14, replaced by scripts/build_all.ps1)
 ```
 
 ---
@@ -351,7 +351,7 @@ BackendCallbacks implements CoreCallbacks protocol:
 | ID | Requirement | Evidence |
 |----|-----------|----------|
 | OPER-32 | YOLO11n ONNX as third detection layer | `vision_yolo.py` YOLODetector |
-| OPER-33 | Bundled in EXE with fallback to OpenCV | `build_exe.py` PyInstaller hooks |
+| OPER-33 | Bundled in EXE with fallback to OpenCV | `build_legacy_tkinter.py` (deprecated) |
 
 ### v3 — 3-Tier Architecture (Phase 9 — COMPLETE)
 
@@ -413,31 +413,11 @@ BackendCallbacks implements CoreCallbacks protocol:
 
 ## Active Requirements
 
-### Phase 12 — ZedsuBackend Feature Parity
+### Phase 15 — Replay Benchmark & Regression Gate
 
-**Status:** Discuss-phase complete, ready for planning.
-**Context:** `.planning/phases/12-backend-parity/12-CONTEXT.md`
-
-| Feature | Description |
-|---------|-------------|
-| Smart Region Selector | Drag-to-select box (F6 hotkey), multiple named regions, normalized coords, stored in `combat_regions` |
-| Advanced Discord Webhook | Inline base64 screenshot (no temp file), 5 event types (match_end, kill_milestone, combat_start, death, bot_error), UI toggle tab |
-| Combat Position Picker | Single-click overlay, multiple named positions, relative coords [0-1], stored in `combat_positions` |
-
-### Phase 13 — System Tray v3
-
-**Status:** Pending
-**Depends on:** Phase 10, Phase 11.5
-**Requirements:** OPER-29, OPER-30, OPER-31, OPER-32
-
-Tauri-native system tray with 4 state colors (Gray/Green/Yellow/Red), right-click menu mapping directly to backend commands. Replaces Phase 6 pystray plan.
-
-### Phase 14 — Production Build & Packaging
-
-**Status:** Pending
-**Depends on:** Phase 10, Phase 11.5, Phase 12
-
-Separate `ZedsuFrontend.exe` + `ZedsuBackend.exe` + `config.json` layout. Automated build script, single-click launcher.
+**Status:** Active / ready for planning
+**Depends on:** Phase 14 complete
+**Requirements:** replay fixtures, benchmark CLI, config-resolution regression, CI-style verifier
 
 ---
 
@@ -463,9 +443,8 @@ Separate `ZedsuFrontend.exe` + `ZedsuBackend.exe` + `config.json` layout. Automa
 - Phase 10: Modern Rust/Tauri GUI
 - Phase 11: YOLO Training Integration
 - Phase 11.5: Contract & Runtime Hardening
-- Phase 12: ZedsuBackend Feature Parity *(discuss done, ready for planning)*
-- Phase 13: System Tray v3 *(pending)*
-- Phase 14: Production Build & Packaging *(pending)*
+- Phase 12–14: Complete
+- Phase 15: Active
 
 ---
 
@@ -514,7 +493,7 @@ Separate `ZedsuFrontend.exe` + `ZedsuBackend.exe` + `config.json` layout. Automa
 | Decision | Rationale |
 |----------|-----------|
 | Hidden main window + tray/HUD | App runs in background; operator sees only the game |
-| 2-row Combat Focus HUD (300x80px) | Compact, unobtrusive, fits corner of screen |
+| 2-row Combat Focus HUD (360x120px) | Compact, unobtrusive, fits corner of screen |
 | JetBrains Mono font | Monospaced, no pixel jitter on changing numbers |
 | F1=emergency_stop, F2=toggle_HUD, F3=toggle, F4=settings | Minimal 4 hotkeys; F6-F9 reserved for Phase 12 |
 
@@ -592,4 +571,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-04-24 after Phase 11.5 completion*
+*Last updated: 2026-04-26 after Phase 14 completion*
