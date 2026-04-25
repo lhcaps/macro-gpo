@@ -253,8 +253,8 @@ Exit criteria:
 Plans:
 - [x] 14-01-PLAN.md — Legacy build rename: build_exe.py → build_legacy_tkinter.py, add warning comment ✅ 2026-04-25
 - [x] 14-02-PLAN.md — Backend PyInstaller build: entry src/zedsu_backend.py, include src package/assets/models, hiddenimports: cv2, numpy, mss, PIL, win32 ✅ 2026-04-25
-- [x] 14-03-PLAN.md — Tauri production build: bundle backend as sidecar, configure icon/resources, no hardcoded dev URL
-- [x] 14-04-PLAN.md — Build all script: scripts/build_all.ps1, smoke_test_dist.py
+- [ ] 14-03-PLAN.md — Tauri production build: bundle backend as sidecar, configure icon/resources, no hardcoded dev URL
+- [ ] 14-04-PLAN.md — Build all script: scripts/build_all.ps1, smoke_test_dist.py
 
 Layout:
 ```
