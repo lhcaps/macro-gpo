@@ -1,0 +1,99 @@
+/* ============================================================
+   detection.css — Enhanced detection page styles
+   Phase 13-05: Region/Position UX integration
+   ============================================================ */
+
+.region-test-result {
+  font-size: var(--text-xs);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  margin-top: var(--space-2);
+  display: none;
+  animation: panel-enter 150ms ease-out;
+}
+
+.region-test-result.text-success {
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--color-running);
+}
+
+.region-test-result.text-error {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--color-error);
+}
+
+.region-test-result.testing {
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--color-warning);
+}
+
+.region-edit-form {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-elevated);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  animation: panel-enter 150ms ease-out;
+}
+
+.coord-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.coord-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.coord-inputs input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+/* Status pills for region validity */
+.status-valid {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--color-running);
+}
+
+.status-missing {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--color-warning);
+}
+
+.status-invalid {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error);
+}
+
+.text-success {
+  color: var(--color-running);
+}
+
+.text-error {
+  color: var(--color-error);
+}
+
+.health-badge.health-ok {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--color-running);
+}
+
+.health-badge.health-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error);
+}

@@ -1,0 +1,78 @@
+/* ============================================================
+   positions.css — Enhanced positions page styles
+   Phase 13-05: Region/Position UX integration
+   ============================================================ */
+
+.position-test-result {
+  font-size: var(--text-xs);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  margin-top: var(--space-2);
+  display: none;
+  animation: panel-enter 150ms ease-out;
+}
+
+.position-test-result.text-success {
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--color-running);
+}
+
+.position-test-result.text-error {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--color-error);
+}
+
+.position-test-result.testing {
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--color-warning);
+}
+
+.position-edit-form {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-elevated);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  animation: panel-enter 150ms ease-out;
+}
+
+.position-edit-form .coord-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.position-edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.position-edit-form input {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  width: 100%;
+}
+
+.position-test-all-progress {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-elevated);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.position-test-all-progress .progress-text {
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.position-test-all-progress .progress-detail {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
