@@ -39,27 +39,18 @@
 |----|------|---------|
 | W-01 | shell.js | Silent error swallowing in poll loop — errors caught and swallowed without logging |
 | W-02 | diagnostics.js | Event listeners accumulate on page reload |
-| W-03 | hud.js | Poll timer memory leak — no cleanup on re-init |
-| W-04 | app.js | Variable hoisting — duplicate `var hudOverlay` declarations |
-| W-05 | positions.js | Unvalidated JSON import — `JSON.parse` on untrusted input |
-| W-06 | confirm.js | Fragile visibility check — relies on `offsetParent` which is fragile for hidden elements |
-| W-07 | positions.js | Repeated unnecessary API calls in import flow |
+| W-03 | hud.js | Poll timer memory leak — no cleanup on re-init | **FIXED** `39fc606`: `clearInterval` before `setInterval` in `initHud` |
+| W-04 | app.js | Variable hoisting — duplicate `var hudOverlay` declarations | — |
+| W-05 | positions.js | Unvalidated JSON import — `JSON.parse` on untrusted input | **FIXED** `39fc606`: schema validation, type checks, per-failure error messages |
+| W-06 | confirm.js | Fragile visibility check — relies on `offsetParent` which is fragile for hidden elements | — |
+| W-07 | positions.js | Repeated unnecessary API calls in import flow | **FIXED** `39fc606`: batched via `Promise.all`, reports exact saved count |
 
-**Recommended:** Address W-03, W-05, and W-07 in a follow-up patch.
-
----
-
-## Info
-
-- Mixed `var`/`let`/`const` usage across files (consistency issue)
-- Unused `async` keywords in `diagnostics.js`
-- No cleanup on page navigation
-- Hardcoded API base URL
-- Inconsistent error handling patterns
+**Recommended:** W-01, W-02, W-04, W-06 are non-blocking informational items.
 
 ---
 
 ## Status
 
-- **CR-01** and **CR-02** fixed and committed.
-- Warnings and info items are tracked for future cleanup.
+- **CR-01** and **CR-02** fixed and committed (`fd380f7`).
+- **W-03**, **W-05**, **W-07** fixed and committed (`39fc606`).
+- W-01, W-02, W-04, W-06 are non-blocking informational items.
