@@ -277,6 +277,41 @@ Exit criteria:
 - F1 emergency_stop works
 - Missing YOLO model → clear warning, no crash
 
+### Phase 14.5: Production Tree Cleanup & Build Isolation
+**Goal:** Clean production repo without deleting source. Fix build isolation (no whole `src/` in PyInstaller), harden `.gitignore`, clean generated artifacts, sync planning artifacts.
+**Depends on:** Phase 14
+**Status**: Complete (2026-04-26) — audit ran, whitelist build verified, smoke test ALL PASSED
+**Plans**: 1 plan (5 commits)
+Plans:
+- [x] Phase 14.5 — Production Tree Cleanup & Build Isolation (5 commits, 2026-04-26)
+
+**Commits:**
+1. **Audit script** — `scripts/audit_production_tree.ps1`: scans root items, tracked/untracked/ignored files, generated candidates, legacy patterns (`src.ui`, `ZedsuApp`, `bridger_source`). Report at `diagnostics/cleanup_audit.md`.
+2. **Build isolation fix** — `scripts/build_backend.ps1`: switch from bundling whole `src/` to whitelist: `src/core`, `src/utils`, `src/services`, `src/overlays`, `src/zedsu_core.py`, `src/zedsu_core_callbacks.py`. Fixes `.lib` artifact collision with Rust/Tauri build output in `src/ZedsuFrontend/target/`.
+3. **.gitignore hardening** — added: `build_backend/`, `build_backend_debug/`, `src/ZedsuFrontend-dist/`, `.build_backend_backup/`, `build_hotfix/`, `dist_hotfix/`, `_manual_runtime_backup/`, `gcm-diagnose.log`, `git_status_check.bat`, `datasets/`, `assets/models/*.onnx`, `*.zip/*.7z/*.msi`.
+4. **Local cleanup** — `scripts/cleanup_production_tree.ps1`: backup runtime data to `_manual_runtime_backup/`, kill processes, remove all local generated artifacts (`dist/`, `build_backend/`, `build_backend_debug/`, `src/ZedsuFrontend/target/`, `captures/`, `diagnostics/`, `debug_log.txt`, etc.). Kept: `src/`, `scripts/`, `.planning/`, `bridger_source/`, `main.py`, `capture_guide.py`.
+5. **Planning sync** — removed stale `npm`/`Node.js` references from `14-CONTEXT.md`, `14-03-PLAN.md`, `14-03-SUMMARY.md`, `09-03-PLAN.md`.
+
+**Key findings from audit:**
+- `dist/`, `build/`, `build_backend/`, `build_backend_debug/`, `src/ZedsuFrontend/target/`, `src/ZedsuFrontend-dist/` — all untracked local artifacts (will be gitignore'd)
+- `main.py` and `capture_guide.py` — still used for legacy Tkinter workflow; `src.ui` references only in these two files
+- `bridger_source/` — reference-only, tracked by git
+
+**NOT removed (kept):**
+- `src/` (runtime source including overlays, core, utils, services)
+- `scripts/` (build and verification scripts)
+- `.planning/` (GSD planning artifacts — not touched)
+- `bridger_source/` (reference architecture)
+- `main.py` / `capture_guide.py` (legacy Tkinter entrypoints, not tracked)
+- `build_legacy_tkinter.py` (deprecated, but not a build artifact)
+
+**Exit criteria:**
+- Backend build uses whitelist (no whole `src/`) — **PASS** (whitelist verified: `src/core`, `src/utils`, `src/services`, `src/overlays`, `zedsu_core*.py`)
+- Clean rebuild produces working `ZedsuBackend.exe` + `Zedsu.exe` — **PASS** (71MB + 11MB, build succeeds)
+- Smoke test ALL CHECKS PASSED — **PASS** (backend starts IDLE, `/health` responds HTTP 200)
+- `.gitignore` covers all Phase 14+ generated artifacts — **PASS**
+- No stale npm/Node references in planning artifacts — **PASS**
+
 ### Phase 15: Replay Benchmark & Regression Gate
 **Goal:** Turn detection/combat from "appears to work" into measurable metrics with replay fixtures and thresholds.
 **Depends on:** Phase 14
@@ -347,7 +382,7 @@ Plans:
 
 **Execution Order:**
 v2: Phases 1-5 → 8 → 6 → 7 (all complete)
-v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 → 12.5 → 12.5.1 → 13 → 14 → 15 → 16 → 17 → 18 → 19
+v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 → 12.5 → 12.5.1 → 13 → 14 → 14.5 → 15 → 16 → 17 → 18 → 19
 
 | Phase | Plans | Status | Completed |
 |-------|-------|--------|-----------|
@@ -372,6 +407,7 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | 12.5.1 AI Wiring Hardening | 1/1 | Complete | 2026-04-25 |
 | 13. Zedsu Operator Shell Redesign | 8/8 | Complete | 2026-04-25 |
 | 14. Real Production Build | 4/4 | Complete | 2026-04-26 |
+| 14.5 Production Tree Cleanup | 1/1 (5 commits) | Complete | 2026-04-26 |
 | 15. Replay Benchmark | 3/3 | Pending | — |
 | 16. Runtime Observability | 2/2 | Pending | — |
 | 17. Combat Quality & YOLO | 2/2 | Pending | — |
