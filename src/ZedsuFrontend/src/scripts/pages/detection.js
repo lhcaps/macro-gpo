@@ -162,7 +162,13 @@ export async function load(c) {
             for (var p = 0; p < REGIONS.length; p++) {
               var rn = REGIONS[p];
               var r = rMap[rn];
-              if (r && (r.detected !== null || r.confidence !== null)) okCount++;
+              if (
+                r &&
+                Array.isArray(r.abs_area) &&
+                r.abs_area.length === 4
+              ) {
+                okCount++;
+              }
             }
             if (window.ShellApi && window.ShellApi.Toast) {
               if (okCount === REGIONS.length) window.ShellApi.Toast.success('All ' + REGIONS.length + ' regions valid');
@@ -177,7 +183,7 @@ export async function load(c) {
       },
       resetRegion: function(name) {
         if (!confirm('Reset region "' + name + '"?')) return;
-        api.setRegion(name, {}).then(function(res) {
+        api.deleteRegion(name).then(function(res) {
           if (res && res.status === 'ok') {
             if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success(name + ' region reset');
             load(c);
