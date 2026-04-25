@@ -71,16 +71,51 @@ if (Test-Path $SpecFile) { Remove-Item $SpecFile -Force }
 # Spec-file datas tuples bypass that parser entirely.
 
 $BackendPy = Join-Path $ProjectRoot "src\zedsu_backend.py"
-$SrcDir = Join-Path $ProjectRoot "src"
 $ModelSource = Join-Path $ProjectRoot "assets\models\yolo_gpo.onnx"
 
 # Convert to forward-slash strings for PyInstaller compatibility
 $BackendPyFs = $BackendPy -replace '\\', '/'
-$SrcDirFs    = $SrcDir -replace '\\', '/'
 
-# Build datas list as properly quoted Python tuple strings
+# Build datas list as properly quoted Python tuple strings.
+# Use a WHITELIST of required runtime directories only.
+# DO NOT bundle the whole src/ directory because it can contain
+# Rust/Tauri build artifacts (src/ZedsuFrontend/target/*.lib) which
+# cause PyInstaller onefile extraction failures at runtime.
 $datasEntries = @()
-$datasEntries += "('$SrcDirFs', 'src')"
+
+$DataDirs = @(
+    "src\core",
+    "src\utils",
+    "src\services",
+    "src\overlays"
+)
+foreach ($rel in $DataDirs) {
+    $abs = Join-Path $ProjectRoot $rel
+    if (Test-Path $abs) {
+        $absFs = $abs -replace '\\', '/'
+        $dest = $rel -replace '\\', '/'
+        $datasEntries += "('$absFs', '$dest')"
+    }
+}
+
+$DataFiles = @(
+    "src\zedsu_core.py",
+    "src\zedsu_core_callbacks.py"
+)
+foreach ($rel in $DataFiles) {
+    $abs = Join-Path $ProjectRoot $rel
+    if (Test-Path $abs) {
+        $absFs = $abs -replace '\\', '/'
+        $dest = Split-Path $rel -Parent
+        $dest = $dest -replace '\\', '/'
+        $datasEntries += "('$absFs', '$dest')"
+    }
+}
+
+if ($datasEntries.Count -eq 0) {
+    Write-Host "[build] ERROR: No runtime data found. Check src/core, src/utils, src/services, src/overlays, and src/zedsu_core*.py."
+    exit 1
+}
 
 if (Test-Path $ModelSource) {
     $ModelFs = $ModelSource -replace '\\', '/'
