@@ -1,5 +1,7 @@
-// shell.js — Full Operator Shell implementation
-// Includes: TopCommandBar, SidebarNav, command proxy, page routing, Toast, state normalization
+// shell.js — Full Operator Shell implementation (Phase 13-06 enhanced)
+// Includes: TopCommandBar, SidebarNav, command proxy, page routing, state normalization
+
+import Toast from './toast.js';
 
 const API_BASE = 'http://localhost:9761';
 
@@ -29,48 +31,6 @@ const shellMain = document.getElementById('shell-main');
 let currentPage = 'overview';
 let pollTimer = null;
 let cachedState = null;
-
-// ============================================================
-// Toast Notifications
-// ============================================================
-const Toast = {
-  container: null,
-
-  init() {
-    if (!this.container) {
-      this.container = document.getElementById('toast-container');
-    }
-  },
-
-  _escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  },
-
-  show(message, type = 'info', duration = 3000) {
-    this.init();
-    if (!this.container) return;
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<span class="toast-message">${this._escapeHtml(message)}</span>`;
-    toast.style.animation = 'toast-enter 200ms ease-out forwards';
-    this.container.appendChild(toast);
-    setTimeout(() => {
-      toast.style.animation = 'toast-exit 200ms ease-in forwards';
-      setTimeout(() => toast.remove(), 200);
-    }, duration);
-  },
-
-  success(msg) { this.show(msg, 'success'); },
-  error(msg) { this.show(msg, 'error', 5000); },
-  info(msg) { this.show(msg, 'info'); },
-  warning(msg) { this.show(msg, 'warning', 4000); },
-};
-
-// Expose Toast globally
-window.ShellApi = window.ShellApi || {};
-window.ShellApi.Toast = Toast;
 
 // ============================================================
 // Command Proxy — { action, payload } contract
@@ -235,6 +195,7 @@ const pageModules = {
   discord: () => import('./pages/discord.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'Discord', '13-04')),
   yolo: () => import('./pages/yolo.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'YOLO', '13-04')),
   logs: () => import('./pages/logs.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'Logs', '13-04')),
+  diagnostics: () => import('./pages/diagnostics.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'Diagnostics', '13-06')),
   settings: () => import('./pages/settings.js').then(m => m.load(shellMain)).catch(() => showPagePlaceholder(shellMain, 'Settings', '13-04')),
 };
 
@@ -356,7 +317,6 @@ export function initShell() {
   navigateTo('overview');
 }
 
-// Expose to window
 window.ShellApi = window.ShellApi || {};
 Object.assign(window.ShellApi, {
   sendCommand,

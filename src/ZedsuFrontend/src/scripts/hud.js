@@ -170,6 +170,16 @@ function toggleExpanded() {
 
 function applyCornerPlacement() {
   if (!hudOverlay) return;
+
+  // Persist settings whenever placement changes
+  try {
+    localStorage.setItem('zedsu-hud-settings', JSON.stringify({
+      corner: HUD_CONFIG.corner,
+      opacity: HUD_CONFIG.opacity,
+      expanded: HUD_CONFIG.expanded,
+    }));
+  } catch (e) {}
+
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const margin = HUD_CONFIG.margin;
@@ -206,7 +216,24 @@ function applyCornerPlacement() {
 // HUD Actions
 // ============================================================
 
-document.getElementById('hud-toggle-expand')?.addEventListener('click', toggleExpanded);
+document.getElementById('hud-cycle-corner')?.addEventListener('click', function() {
+  var corners = ['top-right', 'top-left', 'bottom-right', 'bottom-left'];
+  var idx = corners.indexOf(HUD_CONFIG.corner);
+  HUD_CONFIG.corner = corners[(idx + 1) % corners.length];
+  applyCornerPlacement();
+});
+
+document.getElementById('hud-toggle-expand')?.addEventListener('click', function() {
+  toggleExpanded();
+  // Persist after toggle
+  try {
+    localStorage.setItem('zedsu-hud-settings', JSON.stringify({
+      corner: HUD_CONFIG.corner,
+      opacity: HUD_CONFIG.opacity,
+      expanded: HUD_CONFIG.expanded,
+    }));
+  } catch (e) {}
+});
 document.getElementById('hud-toggle-pin')?.addEventListener('click', () => {
   hudOverlay?.classList.toggle('hud-pinned');
 });
@@ -241,6 +268,19 @@ window.HudApi = {
 
 export function initHud() {
   if (!hudOverlay) return;
+
+  // Load persisted settings from localStorage
+  try {
+    var saved = JSON.parse(localStorage.getItem('zedsu-hud-settings') || '{}');
+    if (saved.corner) HUD_CONFIG.corner = saved.corner;
+    if (saved.opacity !== undefined) HUD_CONFIG.opacity = saved.opacity;
+    if (saved.expanded !== undefined) HUD_CONFIG.expanded = saved.expanded;
+  } catch (e) {}
+
+  // Restore expanded state
+  if (HUD_CONFIG.expanded && hudExpanded) {
+    hudExpanded.style.display = 'block';
+  }
 
   applyCornerPlacement();
   pollBackend();
