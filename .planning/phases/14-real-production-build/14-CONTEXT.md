@@ -58,7 +58,7 @@ Exit criteria:
 
 ### Build Orchestration
 - **D-14-16:** `scripts/build_all.ps1` orchestrates the full pipeline: frontend build → PyInstaller → Tauri build → smoke test
-- **D-14-17:** `smoke_test_dist.py` verifies the dist package: can start Zedsu.exe, backend spawns, /health responds, F1/F3 hotkeys work, no crash on missing YOLO
+- **D-14-17:** `smoke_test_dist.py` verifies the dist package: can start Zedsu.exe, backend spawns, `/health` responds, `/state` reports idle/running false, backend exits cleanly. **F1/F3 hotkey verification is NOT automated** — it requires a UI automation harness that can reliably send global hotkeys in a headless build environment. Hotkey testing is deferred to manual UAT. Smoke script focuses on process lifecycle and HTTP contract only.
 
 ### NOT Doing
 - **D-14-18:** Do NOT modify `build_exe.py` — rename to `build_legacy_tkinter.py` with warning comment only
