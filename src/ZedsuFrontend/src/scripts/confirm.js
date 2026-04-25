@@ -45,7 +45,7 @@ class ConfirmDialog {
     var cancelBtnEl = document.getElementById('confirm-cancel');
 
     if (titleEl) titleEl.textContent = title;
-    if (messageEl) messageEl.innerHTML = String(message);
+    if (messageEl) messageEl.textContent = String(message);
     if (okBtn) {
       okBtn.textContent = confirmLabel;
       okBtn.className = danger ? 'btn btn-danger btn-sm' : 'btn btn-primary btn-sm';

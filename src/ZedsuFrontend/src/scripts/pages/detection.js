@@ -142,7 +142,7 @@ export async function load(c) {
             if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.success(name + ' region set');
             load(c);
           } else {
-            if (ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Region selection cancelled or failed');
+            if (window.ShellApi && window.ShellApi.Toast) window.ShellApi.Toast.error('Region selection cancelled or failed');
           }
         });
       },
