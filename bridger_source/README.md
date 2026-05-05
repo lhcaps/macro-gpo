@@ -1,6 +1,6 @@
-# Bridger Fishing Macro — Source Code
+# Bridger Fishing Macro — Reference Architecture Notes
 
-Reconstructed source code from decompiling `BridgerBackend.exe` (Python/PyInstaller) and `bridger.exe` (Rust/Tauri 2.x).
+Source code notes from a 3-tier Rust/Python automation system (Rust/Tauri frontend + Python HTTP backend + Python core). Served as reference material for Zedsu's own architecture.
 
 ---
 
@@ -15,13 +15,12 @@ bridger_source/
 ├── src/
 │   ├── BridgerBackend.py ← HTTP API server + GUI overlay
 │   ├── bridger.py        ← FishingEngine (audio detection + minigame)
-│   └── bridger.rs        ← Rust/Tauri frontend (reconstruction)
+│   └── bridger.rs        ← Rust/Tauri frontend
 ├── assets/
-│   ├── pics/             ← OCR minigame templates (tpl_t.png, tpl_g.png, etc.)
-│   │                        bite_template.wav (audio bite template)
+│   └── pics/             ← OCR minigame templates (tpl_t.png, tpl_g.png, etc.)
 │   └── tesseract/        ← Tesseract OCR binaries (optional)
 └── pyz_modules/
-    └── (1388 reconstructed PYZ module .py files)
+    └── (reconstructed PYZ module .py files)
 ```
 
 ---

@@ -2,12 +2,13 @@
 
 ## Overview
 
-Zedsu v3 transforms the monolithic single-process Python app into the **3-tier architecture** pioneered by Bridger (referenced at `bridger_source/`):
-- **Tier 1 (`src/zedsu_core.py`):** Pure Python logic — bot engine, vision, combat FSM, no GUI imports
+Zedsu v3 transforms the monolithic single-process Python app into a **3-tier architecture**:
+
+- **Tier 1 (`src/zedsu_core.py`):** Pure Python logic — vision engine, state machine, no GUI imports
 - **Tier 2 (`src/zedsu_backend.py`):** Python HTTP API server — config management, Discord webhook, region selectors, position picker
 - **Tier 3 (`src/ZedsuFrontend/`):** Rust/Tauri 2.x WebView — process supervisor, transparent overlay, modern UI
 
-**Reference architecture:** `bridger_source/` — decompiled Bridger fishing macro demonstrating the same 3-tier pattern in production.
+Earlier architecture notes were used as inspiration for separating UI, backend, and runtime core. The current implementation is its own runtime architecture and does not depend on external reference code at execution time.
 
 **Reference YOLO training:** `docs/YOLO_TRAINING.md` — collect → annotate → train → ONNX → integrate pipeline for far-range enemy detection.
 
@@ -30,7 +31,7 @@ Zedsu v3 transforms the monolithic single-process Python app into the **3-tier a
 ## v3 Milestone (Active)
 
 ### Phase 9: 3-Tier Architecture Revamp
-**Goal:** Restructure Zedsu into Bridger-style 3-tier architecture — ZedsuCore (logic) + ZedsuBackend (HTTP API) + ZedsuFrontend (Rust/Tauri WebView). Migrate all v2 logic, kill process coupling, add Rust process supervisor.
+**Goal:** Restructure Zedsu into a 3-tier architecture — ZedsuCore (logic) + ZedsuBackend (HTTP API) + ZedsuFrontend (Rust/Tauri WebView). Migrate all v2 logic, kill process coupling, add Rust process supervisor.
 **Depends on:** Phase 7, Phase 8 (all v2 complete)
 **Requirements**: New v3 requirements TBD via discuss-phase
 **Status**: Complete — UAT: 16/16 pass, cargo check: PASS, backend endpoints verified
@@ -53,7 +54,7 @@ Plans:
 - [x] 10-04-PLAN.md — Wave 3: Verification (cargo check + cargo build)
 
 ### Phase 11: YOLO Training Integration
-**Goal:** Enhance Phase 8 YOLO training workflow with the improved approach from Bridger's reference. Better dataset collection UI, training pipeline automation, ONNX export.
+**Goal:** Enhance Phase 8 YOLO training workflow with improved dataset collection UI and training pipeline automation.
 **Depends on:** Phase 9
 **Requirements**: OPER-36, OPER-37 (existing)
 **Status**: Complete (2026-04-24)
@@ -74,7 +75,7 @@ Plans:
 - [x] 11-5-03-PLAN.md — Wave 3: Vision + Config (YOLO parser/NMS, recursive validation, config schema v2)
 
 ### Phase 12: Operator Targeting & Notification Controls
-**Goal:** Build the core operator-facing controls: smart region selector, combat position picker, and structured Discord event system. This is NOT a Bridger clone — it is Zedsu's own product: a recoverable, screen-based GPO BR automation runtime that always keeps the operator informed about loop state, why it is stuck, what it tried, and what needs fixing.
+**Goal:** Build the core operator-facing controls: smart region selector, combat position picker, and structured Discord event system. A recoverable, screen-based automation runtime that always keeps the operator informed about loop state, why it is stuck, what it tried, and what needs fixing.
 **Depends on:** Phase 11.5
 **Requirements**: OPER-36, OPER-37 (existing), new Phase 12 requirements TBD
 **Status**: 12.0 Complete; 12.1 Complete; 12.2 Complete; 12.3 Complete (hotfix applied); 12.4 Complete (2026-04-25); 12.5 Complete (2026-04-25); 12.5.1 Complete (2026-04-25)
@@ -338,7 +339,7 @@ Plans:
 8. Smoke test backend still works after frontend changes
 
 ### Phase 14.7: Frontend UX Stabilization & Bridger-style Redesign
-**Goal:** Fix critical runtime bugs and transform the operator shell from prototype to production-quality control panel. Addresses: router lifecycle (Overview listener bleeding into other tabs), config normalization (discord.events crash), logs spinner hang, toggle state hardening, and visual redesign toward Bridger-inspired premium control panel. No new features — only stabilization and quality.
+**Goal:** Fix critical runtime bugs and transform the operator shell from prototype to production-quality control panel. Addresses: router lifecycle (Overview listener bleeding into other tabs), config normalization (discord.events crash), logs spinner hang, toggle state hardening, and visual redesign toward a premium control panel. No new features — only stabilization and quality.
 **Depends on:** Phase 14.6
 **Status**: Complete (2026-04-26) — All 15 acceptance criteria verified, smoke test ALL PASSED, build 68.1MB backend + 11.1MB frontend OK
 **Plans**: 9 plans (3 waves)
@@ -491,57 +492,4 @@ v3: Phase 9 → 10 → 11 → 11.5 → 12.0 → 12.1 → 12.2 → 12.3 → 12.4 
 | `.planning/research/ui_ux_tech.md` | Complete (16KB) | pystray for system tray; pydirectinput.moveRel for Roblox; DPI-aware scaling; collapsible Tkinter panels |
 | `.planning/research/performance_input.md` | Complete (22KB) | MSS recommended (3-15ms capture); pydirectinput.moveRel confirmed for Roblox; DXCam overkill |
 
-## Reference: Bridger Architecture
-
-From `bridger_source/` (reference implementation):
-
-### Bridger 3-Tier Architecture
-
-```
-Tier 3: bridger.exe (Rust/Tauri 2.x)
-  - WebviewWindow: overlay.html (transparent, always-on-top)
-  - IPC Commands: send_to_python, overlay_create, get_backend_state
-  - Process Manager: spawn → health_check (3s) → respawn (max 3)
-  - DPI Awareness: SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE_V2)
-  - HTTP: GET /state, POST /command → port 9760
-
-Tier 2: BridgerBackend.exe (Python/PyInstaller)
-  - HTTPServer port 9760 (ThreadingMixIn, keep-alive)
-  - 3 endpoints: /health, /state, /command
-  - Tkinter status overlay (disabled in headless mode)
-  - OCR region selector (drag-to-select with zoom lens)
-  - Hotkey manager (keyboard module)
-  - Config loader/saver (deep merge)
-  - Discord webhook (base64 screenshot in embed)
-  - Callback pattern: log_fn, status_fn, score_fn, webhook_fn
-
-Tier 1: bridger.py (Python)
-  - Thread 1: Audio capture (pyaudiowpatch/WASAPI loopback)
-  - FFT cross-correlation: _T_FFT cached, buf_fft per frame
-  - Thread 2: Fishing loop (daemon)
-  - Minigame detection: OCR (Tesseract) / CV (OpenCV) / Pixel (RGB)
-  - Debounce: bite_valid_after = time.time() + 2.0
-```
-
-### Bridger Key Techniques
-
-**Audio FFT Cross-Correlation:**
-- `bite_template.wav` loaded once → FFT computed once → cached as `_T_FFT`
-- Each audio frame: `buf_fft = np.fft.rfft(buf[-fft_len:])`
-- Correlation: `np.fft.irfft(buf_fft * self._T_FFT.conj())`
-- O(N log N) vs O(N²) for naive convolution
-
-**Minigame Fingerprint Matching (16x16 binary):**
-- 16x16 template → flatten → normalize → cosine similarity
-- 3 variants per letter (T, G, F, R) for font variation
-- Scale-invariant: uses RGB values, not pixel positions
-
-**Pixel Relative Detection:**
-- Anchor pixel search (dark RGB 30,30,30)
-- Offset coordinates from anchor → scale by screen resolution
-- `actual_x = reference_x × (screen_width / 1920)`
-
-**Discord Webhook with Screenshot:**
-- `mss.sct.grab(monitor[0])` → PIL Image → PNG → base64
-- `embed["embeds"][0]["image"] = {"url": f"data:image/png;base64,{b64}"}`
-- Discord accepts data URI in embed image — no upload server needed
+## Research Artifacts
